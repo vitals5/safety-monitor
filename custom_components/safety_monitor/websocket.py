@@ -215,7 +215,11 @@ async def ws_save_zone(
         connection.send_error(msg["id"], "not_found", "Safety Monitor not initialized")
         return
 
-    saved = await store.async_save_zone(msg["zone"])
+    zone_data = dict(msg["zone"])
+    if not (zone_data.get("name") or "").strip():
+        zone_data["name"] = zone_data.get("id")
+
+    saved = await store.async_save_zone(zone_data)
     connection.send_result(msg["id"], {"zone": saved})
 
 

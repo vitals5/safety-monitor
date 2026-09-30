@@ -99,6 +99,27 @@ class TestSafetyStorage(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(del_ok)
         self.assertIsNone(self.storage.async_get_zone("attic"))
 
+    async def test_zone_default_name_to_id(self) -> None:
+        """Test that zone name defaults to zone id when name is empty or omitted."""
+        await self.storage.async_load()
+
+        # Omitted name
+        zone_without_name = {
+            "id": "garage",
+        }
+        saved = await self.storage.async_save_zone(zone_without_name)
+        self.assertEqual(saved["id"], "garage")
+        self.assertEqual(saved["name"], "garage")
+
+        # Empty string name
+        zone_with_empty_name = {
+            "id": "garden_shed",
+            "name": "   ",
+        }
+        saved2 = await self.storage.async_save_zone(zone_with_empty_name)
+        self.assertEqual(saved2["id"], "garden_shed")
+        self.assertEqual(saved2["name"], "garden_shed")
+
     async def test_action_crud(self) -> None:
         """Test action save, get, and delete."""
         await self.storage.async_load()

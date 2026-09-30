@@ -252,9 +252,10 @@ class SafetyStorage:
         zone_id = zone_data.get("id")
         if not zone_id:
             zone_id = str(uuid.uuid4())[:8]
+        zone_name = (zone_data.get("name") or "").strip() or zone_id
         merged = {
             "id": zone_id,
-            "name": zone_data.get("name", zone_id),
+            "name": zone_name,
             "double_knock_enabled": bool(zone_data.get("double_knock_enabled", False)),
             "double_knock_timeout": int(zone_data.get("double_knock_timeout", DEFAULT_DOUBLE_KNOCK_TIMEOUT)),
         }

@@ -129,6 +129,30 @@ class TestWebSocketAPI(unittest.IsolatedAsyncioTestCase):
         await ws_delete_sensor(self.hass, self.connection, msg_del)
         self.assertIsNone(self.storage.async_get_sensor("binary_sensor.gas_detector"))
 
+    async def test_ws_zone_save_default_name_to_id(self) -> None:
+        """Test saving a zone via WS defaults name to ID when omitted or empty."""
+        msg_save_empty_name = {
+            "id": 10,
+            "type": "safety_monitor/zone/save",
+            "zone": {
+                "id": "workshop",
+                "name": "",
+            },
+        }
+        await ws_save_zone(self.hass, self.connection, msg_save_empty_name)
+        zone = self.storage.async_get_zone("workshop")
+        self.assertIsNotNone(zone)
+        self.assertEqual(zone["name"], "workshop")
+
+        # Delete zone via WS
+        msg_del = {
+            "id": 11,
+            "type": "safety_monitor/zone/delete",
+            "zone_id": "workshop",
+        }
+        await ws_delete_zone(self.hass, self.connection, msg_del)
+        self.assertIsNone(self.storage.async_get_zone("workshop"))
+
     async def test_ws_actions_control(self) -> None:
         """Test silence, reset and test mode via WS."""
         # Silence

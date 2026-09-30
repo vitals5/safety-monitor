@@ -482,28 +482,36 @@
             flex-wrap: wrap;
           }
           .btn-ctl {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
             padding: 10px 18px;
-            border: 2px solid rgba(255,255,255,0.7);
-            background: rgba(255,255,255,0.2);
-            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.45);
+            background: rgba(0, 0, 0, 0.35);
+            color: #ffffff !important;
             border-radius: 10px;
             font-size: 14px;
             font-weight: 700;
             cursor: pointer;
-            backdrop-filter: blur(4px);
+            backdrop-filter: blur(8px);
             transition: all 0.2s ease;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+            user-select: none;
           }
           .btn-ctl:hover {
-            background: #fff;
-            color: #212121;
+            background: rgba(0, 0, 0, 0.55);
+            border-color: rgba(255, 255, 255, 0.9);
+            transform: translateY(-1px);
+            color: #ffffff !important;
           }
           .btn-ctl.danger {
-            background: #d32f2f;
-            border-color: #d32f2f;
+            background: #b71c1c;
+            border-color: #ff8a80;
+            color: #ffffff !important;
           }
           .btn-ctl.danger:hover {
-            background: #b71c1c;
-            color: #fff;
+            background: #d32f2f;
+            color: #ffffff !important;
           }
 
           /* Cards */
@@ -546,10 +554,11 @@
             margin-top: 10px;
           }
           .candidate-chip {
-            background: #fff;
-            border: 1px solid #e0e0e0;
+            background: var(--card-background-color, rgba(127, 127, 127, 0.08));
+            border: 1px solid var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.25)));
+            color: var(--primary-text-color, inherit);
             border-radius: 20px;
-            padding: 6px 12px;
+            padding: 6px 14px;
             font-size: 13px;
             display: flex;
             align-items: center;
@@ -558,12 +567,16 @@
           .btn-add-cand {
             border: none;
             background: var(--primary-color, #0288d1);
-            color: #fff;
-            padding: 4px 10px;
+            color: var(--text-primary-color, #ffffff) !important;
+            padding: 5px 12px;
             border-radius: 12px;
             font-size: 12px;
             font-weight: 600;
             cursor: pointer;
+            transition: all 0.15s ease;
+          }
+          .btn-add-cand:hover {
+            filter: brightness(1.1);
           }
 
           /* Tables */
@@ -638,35 +651,90 @@
             color: inherit;
             font-size: 14px;
           }
-          .btn-primary {
-            padding: 10px 18px;
-            background: var(--primary-color, #0288d1);
-            color: #fff;
-            border: none;
-            border-radius: 10px;
+          /* Base Button - Material / Home Assistant compliant */
+          .btn, .btn-primary, .btn-secondary, .btn-danger {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 9px 18px;
             font-size: 14px;
             font-weight: 600;
+            border-radius: 10px;
+            border: none;
             cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 6px;
+            line-height: 1.4;
+            transition: all 0.15s ease;
+            text-decoration: none;
+            user-select: none;
+          }
+          .btn-primary {
+            background-color: var(--primary-color, #0288d1);
+            color: var(--text-primary-color, #ffffff) !important;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+            border: none;
           }
           .btn-primary:hover {
-            opacity: 0.9;
+            filter: brightness(1.1);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+            transform: translateY(-1px);
           }
+          .btn-secondary {
+            background-color: var(--secondary-background-color, rgba(127, 127, 127, 0.15));
+            color: var(--primary-text-color, inherit) !important;
+            border: 1px solid var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.3)));
+          }
+          .btn-secondary:hover {
+            background-color: var(--divider-color, rgba(127, 127, 127, 0.28));
+            color: var(--primary-text-color, inherit) !important;
+          }
+          .btn-danger {
+            background-color: rgba(211, 47, 47, 0.15);
+            color: var(--error-color, #d32f2f) !important;
+            border: 1px solid rgba(211, 47, 47, 0.35);
+          }
+          .btn-danger:hover {
+            background-color: var(--error-color, #d32f2f);
+            color: #ffffff !important;
+          }
+
+          /* Small / Table Action Buttons */
           .btn-sm {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
             padding: 6px 12px;
             border-radius: 8px;
             font-size: 12px;
             font-weight: 600;
             cursor: pointer;
-            border: 1px solid #ccc;
-            background: #fff;
+            line-height: 1.3;
+            border: 1px solid var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.25)));
+            background-color: var(--secondary-background-color, rgba(127, 127, 127, 0.12));
+            color: var(--primary-text-color, inherit) !important;
+            transition: all 0.15s ease;
+          }
+          .btn-sm:hover {
+            background-color: var(--divider-color, rgba(127, 127, 127, 0.25));
+            color: var(--primary-text-color, inherit) !important;
+          }
+          .btn-sm.action-test {
+            background-color: rgba(2, 136, 209, 0.12);
+            color: var(--primary-color, #0288d1) !important;
+            border-color: rgba(2, 136, 209, 0.3);
+          }
+          .btn-sm.action-test:hover {
+            background-color: var(--primary-color, #0288d1);
+            color: #ffffff !important;
           }
           .btn-sm.danger {
-            color: #d32f2f;
-            border-color: #ffcdd2;
-            background: #ffebee;
+            background-color: rgba(211, 47, 47, 0.12);
+            color: var(--error-color, #d32f2f) !important;
+            border-color: rgba(211, 47, 47, 0.35);
+          }
+          .btn-sm.danger:hover {
+            background-color: var(--error-color, #d32f2f);
+            color: #ffffff !important;
           }
 
           /* History Timeline */
@@ -1070,7 +1138,7 @@
               <small style="color: #888;">Gefahrentypen: ${(a.trigger_types || []).join(', ') || 'Alle'}</small>
             </div>
             <div style="display: flex; gap: 6px;">
-              <button class="btn-sm btn-test-action" data-action-id="${a.id}">⚡ ${this._t("testAction")}</button>
+              <button class="btn-sm action-test btn-test-action" data-action-id="${a.id}">⚡ ${this._t("testAction")}</button>
               <button class="btn-sm btn-edit-action" data-action-id="${a.id}">${this._t("edit")}</button>
               <button class="btn-sm danger btn-delete-action" data-action-id="${a.id}">${this._t("delete")}</button>
             </div>
@@ -1235,8 +1303,8 @@
                 <input type="text" class="form-control" id="modal-sensor-shutoffs" value="${(s.linked_shutoff || []).join(', ')}" placeholder="valve.hauptwasser, fan.lueftung">
               </div>
               <div class="modal-actions">
-                <button class="btn-sm" id="btn-modal-cancel">${this._t("cancel")}</button>
-                <button class="btn-primary" id="btn-modal-save-sensor">${this._t("save")}</button>
+                <button class="btn btn-secondary" id="btn-modal-cancel">${this._t("cancel")}</button>
+                <button class="btn btn-primary" id="btn-modal-save-sensor">${this._t("save")}</button>
               </div>
             </div>
           </div>
@@ -1252,10 +1320,12 @@
               <div class="form-group">
                 <label class="form-label">Zonen ID</label>
                 <input type="text" class="form-control" id="modal-zone-id" value="${z.id || ''}" ${z.id ? 'readonly' : ''} placeholder="kitchen">
+                <small style="color: var(--secondary-text-color, #757575); font-size: 11px; display: block; margin-top: 4px;">Eindeutige ID (wird automatisch als Name genutzt, falls Name leer gelassen wird).</small>
               </div>
               <div class="form-group">
                 <label class="form-label">${this._t("zoneName")}</label>
-                <input type="text" class="form-control" id="modal-zone-name" value="${z.name || ''}" placeholder="Küche">
+                <input type="text" class="form-control" id="modal-zone-name" value="${z.name || ''}" placeholder="Wird automatisch auf ID gesetzt falls leer">
+                <small style="color: var(--secondary-text-color, #757575); font-size: 11px; display: block; margin-top: 4px;">Optionaler Anzeigename. Wenn leer, wird die ID verwendet.</small>
               </div>
               <div class="form-group">
                 <label style="display:flex; align-items:center; gap:8px;">
@@ -1268,8 +1338,8 @@
                 <input type="number" class="form-control" id="modal-zone-dk-timeout" value="${z.double_knock_timeout || 60}">
               </div>
               <div class="modal-actions">
-                <button class="btn-sm" id="btn-modal-cancel">${this._t("cancel")}</button>
-                <button class="btn-primary" id="btn-modal-save-zone">${this._t("save")}</button>
+                <button class="btn btn-secondary" id="btn-modal-cancel">${this._t("cancel")}</button>
+                <button class="btn btn-primary" id="btn-modal-save-zone">${this._t("save")}</button>
               </div>
             </div>
           </div>
@@ -1307,8 +1377,8 @@
                 <textarea class="form-control" id="modal-act-data" rows="4" style="font-family:monospace; font-size:12px;">${JSON.stringify(a.data || {}, null, 2)}</textarea>
               </div>
               <div class="modal-actions">
-                <button class="btn-sm" id="btn-modal-cancel">${this._t("cancel")}</button>
-                <button class="btn-primary" id="btn-modal-save-action">${this._t("save")}</button>
+                <button class="btn btn-secondary" id="btn-modal-cancel">${this._t("cancel")}</button>
+                <button class="btn btn-primary" id="btn-modal-save-action">${this._t("save")}</button>
               </div>
             </div>
           </div>
@@ -1568,8 +1638,11 @@
       const btnSaveModalZone = root.querySelector('#btn-modal-save-zone');
       if (btnSaveModalZone) {
         btnSaveModalZone.addEventListener('click', async () => {
-          const id = root.querySelector('#modal-zone-id').value.trim().toLowerCase().replace(/\s+/g, '_');
-          const name = root.querySelector('#modal-zone-name').value.trim() || id;
+          const rawId = (root.querySelector('#modal-zone-id').value || '').trim();
+          const id = rawId.toLowerCase().replace(/\s+/g, '_');
+          const enteredName = (root.querySelector('#modal-zone-name').value || '').trim();
+          // Fallback: If no name entered, use entered ID as name
+          const name = enteredName || rawId || id;
           const dk = root.querySelector('#modal-zone-dk').checked;
           const timeout = parseInt(root.querySelector('#modal-zone-dk-timeout').value, 10) || 60;
 
