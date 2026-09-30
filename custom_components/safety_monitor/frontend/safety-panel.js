@@ -83,6 +83,7 @@
       actionTarget: "Ziel-Entität (z. B. valve.hauptwasser):",
       actionPayload: "Dienst-Daten (JSON mit {{ sensor_name }}, {{ zone }}):",
       actionTriggerTypes: "Auslösen bei folgenden Gefahrentypen:",
+      toggleMenu: "Home Assistant Seitenmenü öffnen / schließen",
     },
     en: {
       appName: "Safety Monitor",
@@ -159,6 +160,7 @@
       actionTarget: "Target Entity (e.g. valve.main_water):",
       actionPayload: "Service Data (JSON with {{ sensor_name }}, {{ zone }}):",
       actionTriggerTypes: "Trigger for following hazard types:",
+      toggleMenu: "Toggle Home Assistant sidebar menu",
     }
   };
 
@@ -245,6 +247,40 @@
           // silent
         }
       }, 3000);
+    }
+
+    _toggleMenu() {
+      // Dispatch standard Home Assistant menu toggle event
+      const event = new CustomEvent("hass-toggle-menu", {
+        bubbles: true,
+        composed: true,
+        cancelable: false,
+      });
+      this.dispatchEvent(event);
+      window.dispatchEvent(event);
+
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.dispatchEvent(new CustomEvent("hass-toggle-menu", {
+            bubbles: true,
+            composed: true,
+            cancelable: false,
+          }));
+        }
+      } catch (_) {}
+
+      try {
+        const root = document.querySelector("home-assistant") || document.querySelector("hc-main");
+        if (root && root.shadowRoot) {
+          const main = root.shadowRoot.querySelector("home-assistant-main");
+          if (main && main.shadowRoot) {
+            const drawer = main.shadowRoot.querySelector("ha-drawer") || main.shadowRoot.querySelector("ha-sidebar");
+            if (drawer && typeof drawer.open === "boolean") {
+              drawer.open = !drawer.open;
+            }
+          }
+        }
+      } catch (_) {}
     }
 
     async _silenceAlarm() {
@@ -362,6 +398,45 @@
             color: #fff;
             font-size: 26px;
             box-shadow: 0 4px 12px rgba(211, 47, 47, 0.3);
+            cursor: pointer;
+            position: relative;
+            user-select: none;
+            transition: all 0.2s ease;
+          }
+          .app-icon:hover {
+            transform: scale(1.06);
+            box-shadow: 0 6px 16px rgba(211, 47, 47, 0.45);
+            filter: brightness(1.08);
+          }
+          .app-icon:active {
+            transform: scale(0.96);
+          }
+          .app-icon:focus-visible {
+            outline: 2px solid var(--primary-color, #0288d1);
+            outline-offset: 2px;
+          }
+          .menu-icon-badge {
+            position: absolute;
+            bottom: -3px;
+            right: -3px;
+            background: var(--card-background-color, #ffffff);
+            color: var(--primary-text-color, #333333);
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
+            border: 1px solid var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.3)));
+            pointer-events: none;
+            transition: all 0.2s ease;
+          }
+          .app-icon:hover .menu-icon-badge {
+            transform: scale(1.15);
+            background: var(--primary-color, #0288d1);
+            color: var(--text-primary-color, #ffffff);
+            border-color: var(--primary-color, #0288d1);
           }
           .app-title {
             font-size: 24px;
@@ -851,7 +926,23 @@
           <!-- Header -->
           <div class="header">
             <div class="title-area">
-              <div class="app-icon">🛡️</div>
+              <div
+                class="app-icon"
+                id="app-menu-toggle"
+                role="button"
+                tabindex="0"
+                title="${this._t("toggleMenu")}"
+                aria-label="${this._t("toggleMenu")}"
+              >
+                <span>🛡️</span>
+                <div class="menu-icon-badge" title="${this._t("toggleMenu")}">
+                  <svg viewBox="0 0 24 24" width="11" height="11" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round">
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                  </svg>
+                </div>
+              </div>
               <div>
                 <h1 class="app-title">${this._t("appName")}</h1>
                 <p class="app-subtitle">${this._t("subtitle")}</p>
@@ -1390,6 +1481,21 @@
 
     _attachEventListeners() {
       const root = this.shadowRoot;
+
+      // Menu Toggle on Top-Left App Icon
+      const btnMenu = root.querySelector('#app-menu-toggle');
+      if (btnMenu) {
+        const handleToggle = (e) => {
+          e.preventDefault();
+          this._toggleMenu();
+        };
+        btnMenu.addEventListener('click', handleToggle);
+        btnMenu.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            handleToggle(e);
+          }
+        });
+      }
 
       // Tabs
       root.querySelectorAll('.tab-btn').forEach(btn => {
