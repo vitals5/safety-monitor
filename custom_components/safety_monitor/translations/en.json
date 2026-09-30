@@ -1,0 +1,54 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Safety Monitor Setup",
+        "description": "Initialize the 24/7 Safety & Hazard Monitoring System (Smoke, Moisture, Gas, Carbon Monoxide, Heat). Found {sensors_found} hazard-capable sensor(s) in Home Assistant."
+      }
+    },
+    "abort": {
+      "already_configured": "Safety Monitor is already configured."
+    }
+  },
+  "entity": {
+    "alarm_control_panel": {
+      "safety_monitor": {
+        "name": "Safety Monitor"
+      }
+    },
+    "binary_sensor": {
+      "hazard_detected": {
+        "name": "Hazard Detected"
+      },
+      "test_mode_active": {
+        "name": "Test Mode Active"
+      }
+    },
+    "sensor": {
+      "safety_status": {
+        "name": "Status"
+      },
+      "last_hazard": {
+        "name": "Last Hazard"
+      }
+    }
+  },
+  "services": {
+    "silence": {
+      "name": "Silence Alarm",
+      "description": "Temporarily silences acoustic sirens and flashes without disarming the 24/7 monitoring."
+    },
+    "reset": {
+      "name": "Reset / Acknowledge Alarm",
+      "description": "Acknowledges safety alerts and returns system state back to normal."
+    },
+    "test_mode": {
+      "name": "Toggle Test Mode",
+      "description": "Enables or disables testing/maintenance mode."
+    },
+    "trigger": {
+      "name": "Trigger Emergency Alarm",
+      "description": "Manually triggers the full hazard alarm sequence."
+    }
+  }
+}

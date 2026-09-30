@@ -1,0 +1,54 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Safety Monitor Einrichtung",
+        "description": "Initialisiert die 24/7 Gefahrenmeldeanlage (Rauch, Wasser, Gas, Kohlenmonoxid, Hitze). Es wurden {sensors_found} kompatible Gefahrensensoren in Home Assistant erkannt."
+      }
+    },
+    "abort": {
+      "already_configured": "Safety Monitor ist bereits konfiguriert."
+    }
+  },
+  "entity": {
+    "alarm_control_panel": {
+      "safety_monitor": {
+        "name": "Safety Monitor"
+      }
+    },
+    "binary_sensor": {
+      "hazard_detected": {
+        "name": "Gefahr erkannt"
+      },
+      "test_mode_active": {
+        "name": "Test-Modus aktiv"
+      }
+    },
+    "sensor": {
+      "safety_status": {
+        "name": "Status"
+      },
+      "last_hazard": {
+        "name": "Letzte Gefahr"
+      }
+    }
+  },
+  "services": {
+    "silence": {
+      "name": "Alarm stummschalten",
+      "description": "Pausiert Sirenen und optische Alarmierung vorübergehend, ohne die 24/7 Überwachung zu stoppen."
+    },
+    "reset": {
+      "name": "Alarm zurücksetzen / quittieren",
+      "description": "Quittiert den Gefahrenalarm und setzt das System zurück auf Normalzustand."
+    },
+    "test_mode": {
+      "name": "Test-Modus umschalten",
+      "description": "Aktiviert oder deaktiviert den Wartungs- und Test-Modus mit automatischem Reset."
+    },
+    "trigger": {
+      "name": "Notfall-Alarm auslösen",
+      "description": "Löst manuell den vollen Notfall- und Evakuierungsalarm aus."
+    }
+  }
+}

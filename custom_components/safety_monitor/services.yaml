@@ -1,0 +1,60 @@
+silence:
+  name: Silence Alarm
+  description: Temporarily silences acoustic sirens and flashes without disarming the 24/7 safety monitoring system.
+  fields:
+    duration:
+      name: Duration
+      description: Number of seconds to keep alarms silenced before re-escalating if hazards persist.
+      required: false
+      example: 600
+      selector:
+        number:
+          min: 0
+          max: 3600
+          unit_of_measurement: seconds
+
+reset:
+  name: Reset / Acknowledge Alarm
+  description: Acknowledges safety alerts and returns system state back to normal.
+  fields:
+    force:
+      name: Force Reset
+      description: Force reset to normal even if some sensors are still reporting an active hazard.
+      required: false
+      default: false
+      selector:
+        boolean:
+
+test_mode:
+  name: Toggle Test Mode
+  description: Enables or disables testing/maintenance mode with automatic timeout. In test mode, physical sirens and cutoff valves are suppressed.
+  fields:
+    enabled:
+      name: Enabled
+      description: True to activate test mode, False to return to normal operation.
+      required: true
+      default: true
+      selector:
+        boolean:
+    duration:
+      name: Duration
+      description: Duration in seconds before test mode automatically reverts to normal.
+      required: false
+      example: 900
+      selector:
+        number:
+          min: 60
+          max: 7200
+          unit_of_measurement: seconds
+
+trigger:
+  name: Trigger Emergency Alarm
+  description: Manually trigger the full hazard alarm sequence (sirens, cutoffs, notifications).
+  fields:
+    reason:
+      name: Reason
+      description: Description or reason for the manual alarm trigger.
+      required: false
+      default: "Manual Evacuation Trigger"
+      selector:
+        text:
