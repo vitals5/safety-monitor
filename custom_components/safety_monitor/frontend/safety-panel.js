@@ -36,7 +36,10 @@
       eventHistoryTitle: "Ereignis-Protokoll",
       noEvents: "Bisher keine Ereignisse protokolliert.",
       searchSensorsPlaceholder: "Sensoren durchsuchen...",
+      searchCandidatesPlaceholder: "Gefahrensensoren filtern...",
       filterAll: "Alle",
+      filterAllTypes: "Alle Typen",
+      noMatchingCandidates: "Keine Gefahrensensoren entsprechen dem Filter.",
       btnAddSensor: "Sensor hinzufügen",
       btnAddZone: "Zone hinzufügen",
       btnAddAction: "Aktion hinzufügen",
@@ -113,7 +116,10 @@
       eventHistoryTitle: "Event Log",
       noEvents: "No events recorded yet.",
       searchSensorsPlaceholder: "Search sensors...",
+      searchCandidatesPlaceholder: "Filter hazard sensors...",
       filterAll: "All",
+      filterAllTypes: "All types",
+      noMatchingCandidates: "No hazard sensors match the filter.",
       btnAddSensor: "Add Sensor",
       btnAddZone: "Add Zone",
       btnAddAction: "Add Action",
@@ -175,6 +181,8 @@
       this._searchFilter = "";
       this._typeFilter = "all";
       this._zoneFilter = "all";
+      this._candidateSearchFilter = "";
+      this._candidateTypeFilter = "all";
       this._editingSensor = null;
       this._editingZone = null;
       this._editingAction = null;
@@ -1462,39 +1470,168 @@
       });
     }
 
+    _getCandidateType(c) {
+      if (c.device_class && ["smoke", "moisture", "gas", "carbon_monoxide", "heat"].includes(c.device_class)) {
+        return c.device_class;
+      }
+      const idAndName = `${c.entity_id || ''} ${c.name || ''}`.toLowerCase();
+      if (idAndName.includes('smoke') || idAndName.includes('rauch')) return 'smoke';
+      if (idAndName.includes('moisture') || idAndName.includes('water') || idAndName.includes('wasser') || idAndName.includes('leak')) return 'moisture';
+      if (idAndName.includes('gas')) return 'gas';
+      if (idAndName.includes('co_') || idAndName.includes('carbon') || idAndName.includes('monoxid')) return 'carbon_monoxide';
+      if (idAndName.includes('heat') || idAndName.includes('hitze') || idAndName.includes('temp')) return 'heat';
+      return c.device_class || 'generic';
+    }
+
+    _getFilteredCandidates() {
+      const list = (this._candidates || []).filter(c => !c.monitored);
+      const search = (this._candidateSearchFilter || "").trim().toLowerCase();
+      const type = this._candidateTypeFilter || "all";
+
+      return list.filter(c => {
+        const cType = this._getCandidateType(c);
+        if (type !== "all" && cType !== type) {
+          return false;
+        }
+        if (search) {
+          const name = (c.name || "").toLowerCase();
+          const entityId = (c.entity_id || "").toLowerCase();
+          const devClass = (c.device_class || "").toLowerCase();
+          const typeName = (this._getTypeName(cType) || "").toLowerCase();
+          if (!name.includes(search) && !entityId.includes(search) && !devClass.includes(search) && !typeName.includes(search)) {
+            return false;
+          }
+        }
+        return true;
+      });
+    }
+
+    _renderCandidateCards(candidates) {
+      if (!candidates || candidates.length === 0) {
+        return `
+          <div style="padding: 24px 12px; text-align: center; color: var(--secondary-text-color, #757575); font-size: 13px;">
+            🔍 ${this._t("noMatchingCandidates")}
+          </div>
+        `;
+      }
+      return candidates.map(c => {
+        const cType = this._getCandidateType(c);
+        return `
+          <div class="candidate-card candidate-chip">
+            <div class="candidate-header-row">
+              <div class="candidate-type-badge">
+                <span class="candidate-type-icon">${this._getTypeIcon(cType)}</span>
+                <span class="badge badge-${cType}">
+                  ${this._getTypeName(cType)}
+                </span>
+              </div>
+              <button class="btn-add-cand" data-cand-id="${c.entity_id}" data-cand-class="${cType}">
+                + ${this._t("addCandidate")}
+              </button>
+            </div>
+            <div class="candidate-details">
+              <div class="candidate-name">${c.name}</div>
+              ${(c.entity_id && c.entity_id !== c.name) ? `
+                <div class="candidate-entity">${c.entity_id}</div>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    _updateCandidatesList() {
+      const root = this.shadowRoot;
+      if (!root) return;
+      const candList = root.querySelector('.candidate-list');
+      if (!candList) return;
+      const filtered = this._getFilteredCandidates();
+      candList.innerHTML = this._renderCandidateCards(filtered);
+
+      const countLabel = root.querySelector('#candidate-count-label');
+      const allNotMonitored = (this._candidates || []).filter(c => !c.monitored);
+      if (countLabel) {
+        if (filtered.length !== allNotMonitored.length) {
+          countLabel.textContent = `(${filtered.length} von ${allNotMonitored.length} gefiltert · vertikal scrollbar)`;
+        } else {
+          countLabel.textContent = `(${allNotMonitored.length} verfügbar · vertikal scrollbar)`;
+        }
+      }
+
+      candList.scrollTop = 0;
+      this._attachCandidateListeners();
+    }
+
+    _attachCandidateListeners() {
+      const root = this.shadowRoot;
+      if (!root) return;
+      root.querySelectorAll('.btn-add-cand').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const cList = root.querySelector('.candidate-list');
+          if (cList) {
+            this._candidateScrollTop = cList.scrollTop;
+          }
+          const entityId = e.currentTarget.dataset.candId;
+          const devClass = e.currentTarget.dataset.candClass || 'smoke';
+          const cand = (this._candidates || []).find(c => c.entity_id === entityId);
+          const friendlyName = (cand && cand.name) ? cand.name : entityId.split('.')[1].replace(/_/g, ' ');
+          this._editingSensor = {
+            entity_id: entityId,
+            name: friendlyName,
+            zone: 'general',
+            type: devClass === 'moisture' ? 'moisture' : devClass === 'gas' ? 'gas' : devClass === 'carbon_monoxide' ? 'carbon_monoxide' : devClass === 'heat' ? 'heat' : 'smoke',
+            pre_alarm_delay: 0,
+            auto_ack_on_clear: false,
+            double_knock: false,
+            linked_shutoff: [],
+          };
+          this._modalOpen = 'sensor';
+          this._render();
+        });
+      });
+    }
+
     _renderSensorsTab(sensors, zones) {
       const candidatesNotMonitored = this._candidates.filter(c => !c.monitored);
+      const filteredCandidates = this._getFilteredCandidates();
       const filtered = this._getFilteredSensors();
 
       return `
         ${candidatesNotMonitored.length > 0 ? `
           <div class="candidate-box">
-            <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 4px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 8px;">
               <strong>✨ ${this._t("candidateBanner", { count: candidatesNotMonitored.length })}</strong>
-              <small style="color: var(--secondary-text-color, #757575); font-size: 12px;">(${candidatesNotMonitored.length} verfügbar · vertikal scrollbar)</small>
+              <small id="candidate-count-label" style="color: var(--secondary-text-color, #757575); font-size: 12px;">
+                ${filteredCandidates.length !== candidatesNotMonitored.length
+                  ? `(${filteredCandidates.length} von ${candidatesNotMonitored.length} gefiltert · vertikal scrollbar)`
+                  : `(${candidatesNotMonitored.length} verfügbar · vertikal scrollbar)`}
+              </small>
+            </div>
+            <div class="candidate-toolbar toolbar" style="margin-bottom: 10px; gap: 8px;">
+              <input
+                type="search"
+                class="search-input"
+                id="search-candidates"
+                placeholder="${this._t("searchCandidatesPlaceholder")}"
+                value="${this._candidateSearchFilter || ''}"
+                style="min-width: 180px; padding: 8px 12px; font-size: 13px;"
+              >
+              <select
+                class="select-filter"
+                id="filter-candidate-type"
+                style="padding: 8px 12px; font-size: 13px;"
+              >
+                <option value="all" ${this._candidateTypeFilter === 'all' ? 'selected' : ''}>${this._t("filterAllTypes")}</option>
+                <option value="smoke" ${this._candidateTypeFilter === 'smoke' ? 'selected' : ''}>🔥 ${this._t("typeSmoke")}</option>
+                <option value="moisture" ${this._candidateTypeFilter === 'moisture' ? 'selected' : ''}>💧 ${this._t("typeMoisture")}</option>
+                <option value="gas" ${this._candidateTypeFilter === 'gas' ? 'selected' : ''}>☣️ ${this._t("typeGas")}</option>
+                <option value="carbon_monoxide" ${this._candidateTypeFilter === 'carbon_monoxide' ? 'selected' : ''}>⚠️ ${this._t("typeCO")}</option>
+                <option value="heat" ${this._candidateTypeFilter === 'heat' ? 'selected' : ''}>🌡️ ${this._t("typeHeat")}</option>
+                <option value="generic" ${this._candidateTypeFilter === 'generic' ? 'selected' : ''}>🛡️ ${this._t("typeGeneric")}</option>
+              </select>
             </div>
             <div class="candidate-list">
-              ${candidatesNotMonitored.map(c => `
-                <div class="candidate-card candidate-chip">
-                  <div class="candidate-header-row">
-                    <div class="candidate-type-badge">
-                      <span class="candidate-type-icon">${this._getTypeIcon(c.device_class || 'generic')}</span>
-                      <span class="badge badge-${c.device_class || 'generic'}">
-                        ${this._getTypeName(c.device_class || 'generic')}
-                      </span>
-                    </div>
-                    <button class="btn-add-cand" data-cand-id="${c.entity_id}" data-cand-class="${c.device_class || 'smoke'}">
-                      + ${this._t("addCandidate")}
-                    </button>
-                  </div>
-                  <div class="candidate-details">
-                    <div class="candidate-name">${c.name}</div>
-                    ${(c.entity_id && c.entity_id !== c.name) ? `
-                      <div class="candidate-entity">${c.entity_id}</div>
-                    ` : ''}
-                  </div>
-                </div>
-              `).join('')}
+              ${this._renderCandidateCards(filteredCandidates)}
             </div>
           </div>
         ` : ''}
@@ -1916,6 +2053,25 @@
       // Sensor Row Action Listeners
       this._attachSensorRowListeners();
 
+      // Candidate Filter Listeners
+      const searchCandidates = root.querySelector('#search-candidates');
+      if (searchCandidates) {
+        searchCandidates.addEventListener('input', (e) => {
+          this._candidateSearchFilter = e.target.value;
+          this._candidateScrollTop = 0;
+          this._updateCandidatesList();
+        });
+      }
+
+      const filterCandType = root.querySelector('#filter-candidate-type');
+      if (filterCandType) {
+        filterCandType.addEventListener('change', (e) => {
+          this._candidateTypeFilter = e.target.value;
+          this._candidateScrollTop = 0;
+          this._updateCandidatesList();
+        });
+      }
+
       // Candidate List Scroll Tracking & Retention
       const candList = root.querySelector('.candidate-list');
       if (candList) {
@@ -1927,31 +2083,8 @@
         }
       }
 
-      // Add Candidate Quick-Button
-      root.querySelectorAll('.btn-add-cand').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          const cList = root.querySelector('.candidate-list');
-          if (cList) {
-            this._candidateScrollTop = cList.scrollTop;
-          }
-          const entityId = e.currentTarget.dataset.candId;
-          const devClass = e.currentTarget.dataset.candClass || 'smoke';
-          const cand = (this._candidates || []).find(c => c.entity_id === entityId);
-          const friendlyName = (cand && cand.name) ? cand.name : entityId.split('.')[1].replace(/_/g, ' ');
-          this._editingSensor = {
-            entity_id: entityId,
-            name: friendlyName,
-            zone: 'general',
-            type: devClass === 'moisture' ? 'moisture' : devClass === 'gas' ? 'gas' : devClass === 'carbon_monoxide' ? 'carbon_monoxide' : devClass === 'heat' ? 'heat' : 'smoke',
-            pre_alarm_delay: 0,
-            auto_ack_on_clear: false,
-            double_knock: false,
-            linked_shutoff: [],
-          };
-          this._modalOpen = 'sensor';
-          this._render();
-        });
-      });
+      // Candidate Row Actions
+      this._attachCandidateListeners();
 
       // Sensor Add / Edit / Delete
       const btnOpenAddSensor = root.querySelector('#btn-open-add-sensor');
