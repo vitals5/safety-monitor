@@ -669,26 +669,57 @@
           .candidate-list::-webkit-scrollbar-thumb:hover {
             background: var(--primary-color, #0288d1);
           }
-          .candidate-chip {
-            background: var(--secondary-background-color, rgba(127, 127, 127, 0.12));
+          .candidate-card, .candidate-chip {
+            background: var(--card-background-color, var(--ha-card-background, rgba(127, 127, 127, 0.08)));
             border: 1px solid var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.25)));
             color: var(--primary-text-color, inherit);
-            border-radius: 10px;
-            padding: 8px 14px;
-            font-size: 13px;
+            border-radius: 12px;
+            padding: 12px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            width: 100%;
+            box-sizing: border-box;
+            transition: all 0.15s ease;
+          }
+          .candidate-card:hover, .candidate-chip:hover {
+            background: var(--secondary-background-color, rgba(127, 127, 127, 0.16));
+            border-color: var(--primary-color, #0288d1);
+          }
+          .candidate-header-row {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 12px;
-            width: 100%;
-            box-sizing: border-box;
+            gap: 10px;
           }
-          .candidate-chip span {
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            min-width: 0;
-            flex: 1;
+          .candidate-type-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+          }
+          .candidate-type-icon {
+            font-size: 16px;
+            line-height: 1;
+          }
+          .candidate-details {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            width: 100%;
+          }
+          .candidate-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--primary-text-color, inherit);
+            line-height: 1.4;
+            word-break: break-word;
+          }
+          .candidate-entity {
+            font-size: 12px;
+            font-family: var(--code-font-family, monospace);
+            color: var(--secondary-text-color, #757575);
+            line-height: 1.35;
+            word-break: break-all;
           }
           .btn-add-cand {
             border: none;
@@ -702,9 +733,11 @@
             transition: all 0.15s ease;
             white-space: nowrap;
             flex-shrink: 0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
           }
           .btn-add-cand:hover {
             filter: brightness(1.1);
+            box-shadow: 0 2px 6px rgba(2, 136, 209, 0.35);
           }
 
           /* Tables */
@@ -1417,11 +1450,24 @@
             </div>
             <div class="candidate-list">
               ${candidatesNotMonitored.map(c => `
-                <div class="candidate-chip">
-                  <span>${this._getTypeIcon(c.device_class || 'generic')} <strong>${c.name}</strong> <small style="color: var(--secondary-text-color, #888); font-size: 11px;">(${c.entity_id})</small></span>
-                  <button class="btn-add-cand" data-cand-id="${c.entity_id}" data-cand-class="${c.device_class || 'smoke'}">
-                    + ${this._t("addCandidate")}
-                  </button>
+                <div class="candidate-card candidate-chip">
+                  <div class="candidate-header-row">
+                    <div class="candidate-type-badge">
+                      <span class="candidate-type-icon">${this._getTypeIcon(c.device_class || 'generic')}</span>
+                      <span class="badge badge-${c.device_class || 'generic'}">
+                        ${this._getTypeName(c.device_class || 'generic')}
+                      </span>
+                    </div>
+                    <button class="btn-add-cand" data-cand-id="${c.entity_id}" data-cand-class="${c.device_class || 'smoke'}">
+                      + ${this._t("addCandidate")}
+                    </button>
+                  </div>
+                  <div class="candidate-details">
+                    <div class="candidate-name">${c.name}</div>
+                    ${(c.entity_id && c.entity_id !== c.name) ? `
+                      <div class="candidate-entity">${c.entity_id}</div>
+                    ` : ''}
+                  </div>
                 </div>
               `).join('')}
             </div>
