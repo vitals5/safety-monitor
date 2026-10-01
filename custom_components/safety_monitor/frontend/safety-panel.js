@@ -351,6 +351,21 @@
     }
 
     _render() {
+      if (!this._config) return;
+
+      // Preserve focus & cursor position if an input is active
+      let activeId = null;
+      let selStart = null;
+      let selEnd = null;
+      if (this.shadowRoot && this.shadowRoot.activeElement) {
+        const el = this.shadowRoot.activeElement;
+        activeId = el.id;
+        if (typeof el.selectionStart === 'number') {
+          selStart = el.selectionStart;
+          selEnd = el.selectionEnd;
+        }
+      }
+
       const state = this._config.state || "normal";
       const activeTriggers = Object.values(this._config.active_triggers || {});
       const sensors = Object.values(this._config.sensors || {});
@@ -453,7 +468,8 @@
           .tabs {
             display: flex;
             gap: 8px;
-            background: var(--card-background-color, #fff);
+            background: var(--ha-card-background, var(--card-background-color, rgba(127, 127, 127, 0.1)));
+            border: 1px solid var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.2)));
             padding: 6px;
             border-radius: 12px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.06);
@@ -465,7 +481,7 @@
             border: none;
             border-radius: 8px;
             background: transparent;
-            color: var(--secondary-text-color, #666);
+            color: var(--secondary-text-color, #757575);
             font-size: 14px;
             font-weight: 600;
             cursor: pointer;
@@ -591,7 +607,9 @@
 
           /* Cards */
           .card {
-            background: var(--card-background-color, #fff);
+            background: var(--ha-card-background, var(--card-background-color, #ffffff));
+            border: 1px solid var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.2)));
+            color: var(--primary-text-color, inherit);
             border-radius: 16px;
             padding: 20px;
             margin-bottom: 24px;
@@ -621,14 +639,19 @@
             border-radius: 12px;
             padding: 14px 18px;
             margin-bottom: 20px;
+            width: 100%;
+            box-sizing: border-box;
           }
           .candidate-list {
             display: flex;
-            flex-wrap: wrap;
+            flex-direction: column;
             gap: 8px;
             margin-top: 10px;
-            max-height: 180px;
+            max-height: 200px;
             overflow-y: auto;
+            overflow-x: hidden;
+            width: 100%;
+            box-sizing: border-box;
             padding: 4px 6px 4px 0;
             scrollbar-width: thin;
             scrollbar-color: var(--divider-color, rgba(127, 127, 127, 0.35)) transparent;
@@ -647,26 +670,38 @@
             background: var(--primary-color, #0288d1);
           }
           .candidate-chip {
-            background: var(--card-background-color, rgba(127, 127, 127, 0.08));
+            background: var(--secondary-background-color, rgba(127, 127, 127, 0.12));
             border: 1px solid var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.25)));
             color: var(--primary-text-color, inherit);
-            border-radius: 20px;
-            padding: 6px 14px;
+            border-radius: 10px;
+            padding: 8px 14px;
             font-size: 13px;
             display: flex;
             align-items: center;
-            gap: 8px;
+            justify-content: space-between;
+            gap: 12px;
+            width: 100%;
+            box-sizing: border-box;
+          }
+          .candidate-chip span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            min-width: 0;
+            flex: 1;
           }
           .btn-add-cand {
             border: none;
             background: var(--primary-color, #0288d1);
             color: var(--text-primary-color, #ffffff) !important;
-            padding: 5px 12px;
-            border-radius: 12px;
+            padding: 6px 14px;
+            border-radius: 8px;
             font-size: 12px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.15s ease;
+            white-space: nowrap;
+            flex-shrink: 0;
           }
           .btn-add-cand:hover {
             filter: brightness(1.1);
@@ -683,7 +718,7 @@
           }
           th {
             padding: 12px 14px;
-            border-bottom: 2px solid var(--divider-color, #e0e0e0);
+            border-bottom: 2px solid var(--divider-color, rgba(127, 127, 127, 0.2));
             font-size: 13px;
             font-weight: 700;
             color: var(--secondary-text-color, #757575);
@@ -692,12 +727,12 @@
           }
           td {
             padding: 14px;
-            border-bottom: 1px solid var(--divider-color, #eeeeee);
+            border-bottom: 1px solid var(--divider-color, rgba(127, 127, 127, 0.15));
             font-size: 14px;
             vertical-align: middle;
           }
           tr:hover td {
-            background-color: rgba(0,0,0,0.02);
+            background-color: rgba(127, 127, 127, 0.05);
           }
 
           /* Badges */
@@ -709,15 +744,74 @@
             border-radius: 12px;
             font-size: 12px;
             font-weight: 600;
+            line-height: 1.3;
           }
-          .badge-smoke { background: #ffebee; color: #c62828; }
-          .badge-moisture { background: #e1f5fe; color: #0277bd; }
-          .badge-gas { background: #fff8e1; color: #f57f17; }
-          .badge-co { background: #fbe9e7; color: #d84315; }
-          .badge-heat { background: #fce4ec; color: #ad1457; }
-          .badge-status-on { background: #ffebee; color: #c62828; font-weight: 700; }
-          .badge-status-off { background: #e8f5e9; color: #2e7d32; }
-          .badge-status-offline { background: #efebe9; color: #5d4037; }
+          .badge-smoke {
+            background: rgba(211, 47, 47, 0.15);
+            color: var(--error-color, #d32f2f);
+            border: 1px solid rgba(211, 47, 47, 0.3);
+          }
+          .badge-moisture {
+            background: rgba(2, 136, 209, 0.15);
+            color: var(--primary-color, #0288d1);
+            border: 1px solid rgba(2, 136, 209, 0.3);
+          }
+          .badge-gas {
+            background: rgba(245, 127, 23, 0.15);
+            color: #f57f17;
+            border: 1px solid rgba(245, 127, 23, 0.3);
+          }
+          .badge-co {
+            background: rgba(216, 67, 21, 0.15);
+            color: #d84315;
+            border: 1px solid rgba(216, 67, 21, 0.3);
+          }
+          .badge-heat {
+            background: rgba(173, 20, 87, 0.15);
+            color: #ad1457;
+            border: 1px solid rgba(173, 20, 87, 0.3);
+          }
+          .badge-generic {
+            background: var(--secondary-background-color, rgba(127, 127, 127, 0.15));
+            color: var(--primary-text-color, inherit);
+            border: 1px solid var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.25)));
+          }
+          .badge-status-on {
+            background: rgba(211, 47, 47, 0.2);
+            color: var(--error-color, #d32f2f);
+            font-weight: 700;
+            border: 1px solid rgba(211, 47, 47, 0.4);
+          }
+          .badge-status-off {
+            background: rgba(46, 125, 50, 0.15);
+            color: var(--success-color, #2e7d32);
+            border: 1px solid rgba(46, 125, 50, 0.3);
+          }
+          .badge-status-offline {
+            background: var(--secondary-background-color, rgba(127, 127, 127, 0.15));
+            color: var(--secondary-text-color, #757575);
+            border: 1px solid var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.25)));
+          }
+          .badge-zone {
+            background: var(--secondary-background-color, rgba(127, 127, 127, 0.15));
+            color: var(--primary-text-color, inherit);
+            border: 1px solid var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.25)));
+          }
+          .badge-feature-dk {
+            background: rgba(230, 81, 0, 0.15);
+            color: #ff9800;
+            border: 1px solid rgba(230, 81, 0, 0.3);
+          }
+          .badge-feature-ack {
+            background: rgba(46, 125, 50, 0.15);
+            color: #4caf50;
+            border: 1px solid rgba(46, 125, 50, 0.3);
+          }
+          .badge-feature-shutoff {
+            background: rgba(2, 136, 209, 0.15);
+            color: #03a9f4;
+            border: 1px solid rgba(2, 136, 209, 0.3);
+          }
 
           /* Filter and Search Bar */
           .toolbar {
@@ -731,18 +825,24 @@
             min-width: 200px;
             padding: 10px 14px;
             border-radius: 10px;
-            border: 1px solid var(--divider-color, #ccc);
-            background: var(--card-background-color, #fff);
-            color: inherit;
+            border: 1px solid var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.3)));
+            background: var(--secondary-background-color, rgba(127, 127, 127, 0.12));
+            color: var(--primary-text-color, inherit);
             font-size: 14px;
+            box-sizing: border-box;
           }
           .select-filter {
             padding: 10px 14px;
             border-radius: 10px;
-            border: 1px solid var(--divider-color, #ccc);
-            background: var(--card-background-color, #fff);
-            color: inherit;
+            border: 1px solid var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.3)));
+            background: var(--secondary-background-color, rgba(127, 127, 127, 0.12));
+            color: var(--primary-text-color, inherit);
             font-size: 14px;
+            box-sizing: border-box;
+          }
+          .select-filter option {
+            background-color: var(--card-background-color, var(--primary-background-color, #202020));
+            color: var(--primary-text-color, inherit);
           }
           /* Base Button - Material / Home Assistant compliant */
           .btn, .btn-primary, .btn-secondary, .btn-danger {
@@ -841,7 +941,7 @@
             align-items: flex-start;
             gap: 14px;
             padding: 12px 0;
-            border-bottom: 1px solid var(--divider-color, #eee);
+            border-bottom: 1px solid var(--divider-color, rgba(127, 127, 127, 0.15));
           }
           .timeline-dot {
             width: 32px;
@@ -851,7 +951,9 @@
             align-items: center;
             justify-content: center;
             font-size: 16px;
-            background: #f0f0f0;
+            background: var(--secondary-background-color, rgba(127, 127, 127, 0.15));
+            border: 1px solid var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.25)));
+            color: var(--primary-text-color, inherit);
             flex-shrink: 0;
           }
           .timeline-content {
@@ -864,16 +966,17 @@
           }
           .timeline-time {
             font-size: 12px;
-            color: var(--secondary-text-color, #888);
+            color: var(--secondary-text-color, #757575);
             margin: 2px 0 0 0;
           }
 
           /* Phase Cards in Actions Tab */
           .phase-card {
-            border: 1px solid var(--divider-color, #e0e0e0);
+            border: 1px solid var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.25)));
             border-radius: 12px;
             padding: 18px;
             margin-bottom: 18px;
+            background: var(--secondary-background-color, rgba(127, 127, 127, 0.05));
           }
           .phase-header {
             display: flex;
@@ -888,7 +991,7 @@
           }
           .phase-desc {
             font-size: 13px;
-            color: var(--secondary-text-color, #666);
+            color: var(--secondary-text-color, #757575);
             margin: 4px 0 12px 0;
           }
 
@@ -904,14 +1007,16 @@
             padding: 16px;
           }
           .modal-content {
-            background: var(--card-background-color, #fff);
+            background: var(--card-background-color, var(--ha-card-background, var(--primary-background-color, #202020)));
+            color: var(--primary-text-color, inherit);
             border-radius: 16px;
             width: 100%;
             max-width: 580px;
             max-height: 90vh;
             overflow-y: auto;
             padding: 24px;
-            box-shadow: 0 12px 36px rgba(0,0,0,0.25);
+            box-shadow: 0 12px 36px rgba(0,0,0,0.35);
+            border: 1px solid var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.25)));
           }
           .form-group {
             margin-bottom: 16px;
@@ -921,16 +1026,17 @@
             font-size: 13px;
             font-weight: 600;
             margin-bottom: 6px;
-            color: var(--primary-text-color, #333);
+            color: var(--primary-text-color, inherit);
           }
           .form-control {
             width: 100%;
             padding: 10px 12px;
             border-radius: 8px;
-            border: 1px solid var(--divider-color, #ccc);
+            border: 1px solid var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.3)));
             font-size: 14px;
-            background: inherit;
-            color: inherit;
+            background: var(--secondary-background-color, rgba(127, 127, 127, 0.12));
+            color: var(--primary-text-color, inherit);
+            box-sizing: border-box;
           }
           /* Entity ID Live Suggestions Dropdown */
           .suggestions-dropdown {
@@ -938,13 +1044,17 @@
             top: 100%;
             left: 0;
             right: 0;
+            width: 100%;
+            box-sizing: border-box;
             margin-top: 4px;
-            background: var(--card-background-color, #ffffff);
+            background: var(--card-background-color, var(--ha-card-background, var(--primary-background-color, #202020)));
+            color: var(--primary-text-color, inherit);
             border: 1px solid var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.3)));
             border-radius: 10px;
             max-height: 220px;
             overflow-y: auto;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+            overflow-x: hidden;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
             z-index: 10050;
             display: none;
             scrollbar-width: thin;
@@ -1076,6 +1186,20 @@
       `;
 
       this._attachEventListeners();
+
+      if (activeId) {
+        const restored = this.shadowRoot.querySelector('#' + activeId);
+        if (restored) {
+          restored.focus();
+          if (selStart !== null && typeof restored.setSelectionRange === 'function') {
+            try {
+              restored.setSelectionRange(selStart, selEnd);
+            } catch (err) {
+              // Ignore unsupported inputs
+            }
+          }
+        }
+      }
     }
 
     _renderOverviewTab(state, activeTriggers, history) {
@@ -1151,8 +1275,8 @@
                   ${activeTriggers.map(t => `
                     <tr style="background: rgba(211, 47, 47, 0.05);">
                       <td><span class="badge badge-${t.type}">${this._getTypeIcon(t.type)} ${this._getTypeName(t.type)}</span></td>
-                      <td><strong>${t.name}</strong><br><small style="color: #666;">${t.entity_id}</small></td>
-                      <td><span class="badge" style="background:#eee;">${t.zone}</span></td>
+                      <td><strong>${t.name}</strong><br><small style="color: var(--secondary-text-color, #888);">${t.entity_id}</small></td>
+                      <td><span class="badge badge-zone">${t.zone}</span></td>
                       <td>${new Date(t.timestamp).toLocaleTimeString()}</td>
                     </tr>
                   `).join('')}
@@ -1188,9 +1312,8 @@
       `;
     }
 
-    _renderSensorsTab(sensors, zones) {
-      const candidatesNotMonitored = this._candidates.filter(c => !c.monitored);
-
+    _getFilteredSensors() {
+      const sensors = (this._config && this._config.sensors) ? Object.values(this._config.sensors) : [];
       let filtered = sensors;
       if (this._typeFilter !== 'all') {
         filtered = filtered.filter(s => s.type === this._typeFilter);
@@ -1199,24 +1322,103 @@
         filtered = filtered.filter(s => s.zone === this._zoneFilter);
       }
       if (this._searchFilter) {
-        const q = this._searchFilter.toLowerCase();
+        const q = this._searchFilter.toLowerCase().trim();
         filtered = filtered.filter(s =>
           (s.name && s.name.toLowerCase().includes(q)) ||
           s.entity_id.toLowerCase().includes(q)
         );
       }
+      return filtered;
+    }
+
+    _renderSensorsTableRows(filtered) {
+      if (filtered.length === 0) {
+        return `<tr><td colspan="7" style="text-align: center; color: var(--secondary-text-color, #757575); padding: 24px;">Keine Sensoren gefunden.</td></tr>`;
+      }
+      return filtered.map(s => {
+        const haState = this._hass && this._hass.states[s.entity_id];
+        const isOn = haState && haState.state === 'on';
+        const isOff = haState && haState.state === 'off';
+        return `
+          <tr>
+            <td>
+              <strong>${s.name}</strong><br>
+              <small style="color: var(--secondary-text-color, #888);">${s.entity_id}</small>
+            </td>
+            <td><span class="badge badge-zone">${s.zone}</span></td>
+            <td>
+              <span class="badge badge-${s.type}">
+                ${this._getTypeIcon(s.type)} ${this._getTypeName(s.type)}
+              </span>
+            </td>
+            <td>${s.pre_alarm_delay ? s.pre_alarm_delay + 's' : 'Sofort'}</td>
+            <td>
+              ${s.double_knock ? '<span class="badge badge-feature-dk">Double-Knock</span> ' : ''}
+              ${s.auto_ack_on_clear ? '<span class="badge badge-feature-ack">Auto-Ack</span> ' : ''}
+              ${(s.linked_shutoff && s.linked_shutoff.length > 0) ? `<span class="badge badge-feature-shutoff">${s.linked_shutoff.length} Aktoren</span>` : ''}
+            </td>
+            <td>
+              <span class="badge ${isOn ? 'badge-status-on' : isOff ? 'badge-status-off' : 'badge-status-offline'}">
+                ${isOn ? 'GEFAHR' : isOff ? 'Normal' : 'Offline'}
+              </span>
+            </td>
+            <td>
+              <button class="btn-sm btn-edit-sensor" data-entity-id="${s.entity_id}">${this._t("edit")}</button>
+              <button class="btn-sm danger btn-delete-sensor" data-entity-id="${s.entity_id}">${this._t("delete")}</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    _updateSensorsTable() {
+      const root = this.shadowRoot;
+      if (!root) return;
+      const tbody = root.querySelector('#sensors-table-body');
+      if (!tbody) return;
+      const filtered = this._getFilteredSensors();
+      tbody.innerHTML = this._renderSensorsTableRows(filtered);
+      this._attachSensorRowListeners();
+    }
+
+    _attachSensorRowListeners() {
+      const root = this.shadowRoot;
+      if (!root) return;
+      root.querySelectorAll('.btn-edit-sensor').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const eid = e.currentTarget.dataset.entityId;
+          this._editingSensor = Object.assign({}, this._config.sensors[eid]);
+          this._modalOpen = 'sensor';
+          this._render();
+        });
+      });
+
+      root.querySelectorAll('.btn-delete-sensor').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const eid = e.currentTarget.dataset.entityId;
+          if (confirm(`Sensor '${eid}' wirklich entfernen?`)) {
+            await this._hass.callWS({ type: "safety_monitor/sensor/delete", entity_id: eid });
+            await this._loadData();
+          }
+        });
+      });
+    }
+
+    _renderSensorsTab(sensors, zones) {
+      const candidatesNotMonitored = this._candidates.filter(c => !c.monitored);
+      const filtered = this._getFilteredSensors();
 
       return `
         ${candidatesNotMonitored.length > 0 ? `
           <div class="candidate-box">
             <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 4px;">
               <strong>✨ ${this._t("candidateBanner", { count: candidatesNotMonitored.length })}</strong>
-              <small style="color: var(--secondary-text-color, #757575); font-size: 12px;">(${candidatesNotMonitored.length} verfügbar · scrollbar)</small>
+              <small style="color: var(--secondary-text-color, #757575); font-size: 12px;">(${candidatesNotMonitored.length} verfügbar · vertikal scrollbar)</small>
             </div>
             <div class="candidate-list">
               ${candidatesNotMonitored.map(c => `
                 <div class="candidate-chip">
-                  <span>${this._getTypeIcon(c.device_class || 'generic')} <strong>${c.name}</strong> <small style="opacity: 0.7; font-size: 11px;">(${c.entity_id})</small></span>
+                  <span>${this._getTypeIcon(c.device_class || 'generic')} <strong>${c.name}</strong> <small style="color: var(--secondary-text-color, #888); font-size: 11px;">(${c.entity_id})</small></span>
                   <button class="btn-add-cand" data-cand-id="${c.entity_id}" data-cand-class="${c.device_class || 'smoke'}">
                     + ${this._t("addCandidate")}
                   </button>
@@ -1233,7 +1435,7 @@
           </div>
 
           <div class="toolbar">
-            <input type="text" class="search-input" id="search-sensors" placeholder="${this._t("searchSensorsPlaceholder")}" value="${this._searchFilter}">
+            <input type="text" class="search-input" id="search-sensors" placeholder="${this._t("searchSensorsPlaceholder")}" value="${this._searchFilter || ''}">
             <select class="select-filter" id="filter-type">
               <option value="all" ${this._typeFilter === 'all' ? 'selected' : ''}>${this._t("filterAll")} (Typ)</option>
               <option value="smoke" ${this._typeFilter === 'smoke' ? 'selected' : ''}>🔥 ${this._t("typeSmoke")}</option>
@@ -1261,43 +1463,8 @@
                   <th>${this._t("thActions")}</th>
                 </tr>
               </thead>
-              <tbody>
-                ${filtered.length === 0 ? `
-                  <tr><td colspan="7" style="text-align: center; color: #888;">Keine Sensoren gefunden.</td></tr>
-                ` : filtered.map(s => {
-                  const haState = this._hass && this._hass.states[s.entity_id];
-                  const isOn = haState && haState.state === 'on';
-                  const isOff = haState && haState.state === 'off';
-                  return `
-                    <tr>
-                      <td>
-                        <strong>${s.name}</strong><br>
-                        <small style="color: #666;">${s.entity_id}</small>
-                      </td>
-                      <td><span class="badge" style="background:#e0e0e0;">${s.zone}</span></td>
-                      <td>
-                        <span class="badge badge-${s.type}">
-                          ${this._getTypeIcon(s.type)} ${this._getTypeName(s.type)}
-                        </span>
-                      </td>
-                      <td>${s.pre_alarm_delay ? s.pre_alarm_delay + 's' : 'Sofort'}</td>
-                      <td>
-                        ${s.double_knock ? '<span class="badge" style="background:#fff3e0;color:#e65100;">Double-Knock</span> ' : ''}
-                        ${s.auto_ack_on_clear ? '<span class="badge" style="background:#e8f5e9;color:#2e7d32;">Auto-Ack</span> ' : ''}
-                        ${(s.linked_shutoff && s.linked_shutoff.length > 0) ? `<span class="badge" style="background:#e1f5fe;color:#0277bd;">${s.linked_shutoff.length} Aktoren</span>` : ''}
-                      </td>
-                      <td>
-                        <span class="badge ${isOn ? 'badge-status-on' : isOff ? 'badge-status-off' : 'badge-status-offline'}">
-                          ${isOn ? 'GEFAHR' : isOff ? 'Normal' : 'Offline'}
-                        </span>
-                      </td>
-                      <td>
-                        <button class="btn-sm btn-edit-sensor" data-entity-id="${s.entity_id}">${this._t("edit")}</button>
-                        <button class="btn-sm danger btn-delete-sensor" data-entity-id="${s.entity_id}">${this._t("delete")}</button>
-                      </td>
-                    </tr>
-                  `;
-                }).join('')}
+              <tbody id="sensors-table-body">
+                ${this._renderSensorsTableRows(filtered)}
               </tbody>
             </table>
           </div>
@@ -1311,12 +1478,12 @@
       const acousticActions = actions.filter(a => a.phase === 'acoustic_optical');
 
       const renderActionList = (list) => {
-        if (list.length === 0) return '<p style="color: #888; font-size: 13px;">Keine Aktionen in dieser Phase konfiguriert.</p>';
+        if (list.length === 0) return '<p style="color: var(--secondary-text-color, #757575); font-size: 13px;">Keine Aktionen in dieser Phase konfiguriert.</p>';
         return list.map(a => `
-          <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee;">
+          <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--divider-color, rgba(127, 127, 127, 0.15));">
             <div>
-              <strong>${a.name}</strong> <span style="font-size: 12px; color: #666;">(${a.service})</span><br>
-              <small style="color: #888;">Gefahrentypen: ${(a.trigger_types || []).join(', ') || 'Alle'}</small>
+              <strong>${a.name}</strong> <span style="font-size: 12px; color: var(--secondary-text-color, #757575);">(${a.service})</span><br>
+              <small style="color: var(--secondary-text-color, #757575);">Gefahrentypen: ${(a.trigger_types || []).join(', ') || 'Alle'}</small>
             </div>
             <div style="display: flex; gap: 6px;">
               <button class="btn-sm action-test btn-test-action" data-action-id="${a.id}">⚡ ${this._t("testAction")}</button>
@@ -1482,21 +1649,31 @@
                 <input type="number" class="form-control" id="modal-sensor-pre-alarm" value="${s.pre_alarm_delay || 0}">
               </div>
               <div class="form-group">
-                <label style="display:flex; align-items:center; gap:8px;">
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
                   <input type="checkbox" id="modal-sensor-double-knock" ${s.double_knock ? 'checked' : ''}>
                   ${this._t("doubleKnockHelp")}
                 </label>
               </div>
               <div class="form-group">
-                <label style="display:flex; align-items:center; gap:8px;">
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
                   <input type="checkbox" id="modal-sensor-auto-ack" ${s.auto_ack_on_clear ? 'checked' : ''}>
                   ${this._t("autoAckHelp")}
                 </label>
               </div>
-              <div class="form-group">
-                <label class="form-label">${this._t("linkedShutoffs")}</label>
-                <input type="text" class="form-control" id="modal-sensor-shutoffs" value="${(s.linked_shutoff || []).join(', ')}" placeholder="valve.hauptwasser, fan.lueftung">
-              </div>
+
+              <!-- Optionale erweiterte Direkt-Aktoren für diesen Sensor -->
+              <details style="margin-top: 14px; margin-bottom: 16px; padding: 12px 14px; border-radius: 10px; border: 1px dashed var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.3))); background: var(--secondary-background-color, rgba(127, 127, 127, 0.05));" ${(s.linked_shutoff && s.linked_shutoff.length > 0) ? 'open' : ''}>
+                <summary style="cursor: pointer; font-size: 13px; font-weight: 600; color: var(--primary-color, #0288d1); user-select: none;">
+                  ⚙️ ${this._t("linkedShutoffs")} (Optional / Sensor-Direktaktoren)
+                </summary>
+                <div style="margin-top: 10px;">
+                  <small style="color: var(--secondary-text-color, #757575); font-size: 11px; display: block; margin-bottom: 8px; line-height: 1.4;">
+                    💡 <em>Hinweis:</em> Allgemeine Notfall-Aktionen (z. B. Hauptwasserhahn schließen bei Wasserleck, Lüftung stoppen bei Rauch) werden zentral im Tab <strong>⚡ Notfall-Aktionen</strong> nach Eskalationsstufen verwaltet. Tragen Sie hier nur Aktoren ein, die ausschließlich für <em>diesen einzelnen</em> Melder direkt geschaltet werden sollen.
+                  </small>
+                  <label class="form-label" style="font-size: 12px;">Spezifische Aktoren (kommagetrennt)</label>
+                  <input type="text" class="form-control" id="modal-sensor-shutoffs" value="${(s.linked_shutoff || []).join(', ')}" placeholder="valve.lokales_ventil, switch.raum_strom">
+                </div>
+              </details>
               <div class="modal-actions">
                 <button class="btn btn-secondary" id="btn-modal-cancel">${this._t("cancel")}</button>
                 <button class="btn btn-primary" id="btn-modal-save-sensor">${this._t("save")}</button>
@@ -1627,7 +1804,7 @@
       if (searchSensors) {
         searchSensors.addEventListener('input', (e) => {
           this._searchFilter = e.target.value;
-          this._render();
+          this._updateSensorsTable();
         });
       }
 
@@ -1635,7 +1812,7 @@
       if (filterType) {
         filterType.addEventListener('change', (e) => {
           this._typeFilter = e.target.value;
-          this._render();
+          this._updateSensorsTable();
         });
       }
 
@@ -1643,9 +1820,12 @@
       if (filterZone) {
         filterZone.addEventListener('change', (e) => {
           this._zoneFilter = e.target.value;
-          this._render();
+          this._updateSensorsTable();
         });
       }
+
+      // Sensor Row Action Listeners
+      this._attachSensorRowListeners();
 
       // Add Candidate Quick-Button
       root.querySelectorAll('.btn-add-cand').forEach(btn => {
@@ -1759,7 +1939,7 @@
               </div>
               <div>
                 ${c.monitored ? `
-                  <span class="badge" style="background: rgba(127,127,127,0.18); font-size: 11px;">Bereits überwacht</span>
+                  <span class="badge badge-generic" style="font-size: 11px;">Bereits überwacht</span>
                 ` : `
                   <span class="badge badge-${c.device_class || 'generic'}" style="font-size: 11px;">
                     ${this._getTypeName(c.device_class || 'generic')}
@@ -1809,25 +1989,6 @@
           }, 200);
         });
       }
-
-      root.querySelectorAll('.btn-edit-sensor').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          const eid = e.currentTarget.dataset.entityId;
-          this._editingSensor = Object.assign({}, this._config.sensors[eid]);
-          this._modalOpen = 'sensor';
-          this._render();
-        });
-      });
-
-      root.querySelectorAll('.btn-delete-sensor').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-          const eid = e.currentTarget.dataset.entityId;
-          if (confirm(`Sensor '${eid}' wirklich entfernen?`)) {
-            await this._hass.callWS({ type: "safety_monitor/sensor/delete", entity_id: eid });
-            await this._loadData();
-          }
-        });
-      });
 
       // Actions Add / Edit / Delete / Test
       const btnOpenAddAction = root.querySelector('#btn-open-add-action');
