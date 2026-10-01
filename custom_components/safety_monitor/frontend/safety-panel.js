@@ -627,6 +627,24 @@
             flex-wrap: wrap;
             gap: 8px;
             margin-top: 10px;
+            max-height: 180px;
+            overflow-y: auto;
+            padding: 4px 6px 4px 0;
+            scrollbar-width: thin;
+            scrollbar-color: var(--divider-color, rgba(127, 127, 127, 0.35)) transparent;
+          }
+          .candidate-list::-webkit-scrollbar {
+            width: 6px;
+          }
+          .candidate-list::-webkit-scrollbar-track {
+            background: transparent;
+          }
+          .candidate-list::-webkit-scrollbar-thumb {
+            background: var(--divider-color, rgba(127, 127, 127, 0.35));
+            border-radius: 4px;
+          }
+          .candidate-list::-webkit-scrollbar-thumb:hover {
+            background: var(--primary-color, #0288d1);
           }
           .candidate-chip {
             background: var(--card-background-color, rgba(127, 127, 127, 0.08));
@@ -914,6 +932,75 @@
             background: inherit;
             color: inherit;
           }
+          /* Entity ID Live Suggestions Dropdown */
+          .suggestions-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            margin-top: 4px;
+            background: var(--card-background-color, #ffffff);
+            border: 1px solid var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.3)));
+            border-radius: 10px;
+            max-height: 220px;
+            overflow-y: auto;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+            z-index: 10050;
+            display: none;
+            scrollbar-width: thin;
+            scrollbar-color: var(--divider-color, rgba(127, 127, 127, 0.35)) transparent;
+          }
+          .suggestions-dropdown::-webkit-scrollbar {
+            width: 6px;
+          }
+          .suggestions-dropdown::-webkit-scrollbar-thumb {
+            background: var(--divider-color, rgba(127, 127, 127, 0.35));
+            border-radius: 4px;
+          }
+          .suggestions-dropdown.visible {
+            display: block;
+          }
+          .suggestion-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 9px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--divider-color, rgba(127, 127, 127, 0.12));
+            transition: background 0.15s ease;
+          }
+          .suggestion-item:last-child {
+            border-bottom: none;
+          }
+          .suggestion-item:hover, .suggestion-item.active {
+            background: rgba(2, 136, 209, 0.12);
+          }
+          .suggestion-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            overflow: hidden;
+          }
+          .suggestion-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--primary-text-color, inherit);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+          .suggestion-entity {
+            font-size: 11px;
+            color: var(--secondary-text-color, #757575);
+            font-family: monospace;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
           .modal-actions {
             display: flex;
             justify-content: flex-end;
@@ -1122,12 +1209,15 @@
       return `
         ${candidatesNotMonitored.length > 0 ? `
           <div class="candidate-box">
-            <strong>✨ ${this._t("candidateBanner", { count: candidatesNotMonitored.length })}</strong>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 4px;">
+              <strong>✨ ${this._t("candidateBanner", { count: candidatesNotMonitored.length })}</strong>
+              <small style="color: var(--secondary-text-color, #757575); font-size: 12px;">(${candidatesNotMonitored.length} verfügbar · scrollbar)</small>
+            </div>
             <div class="candidate-list">
-              ${candidatesNotMonitored.slice(0, 6).map(c => `
+              ${candidatesNotMonitored.map(c => `
                 <div class="candidate-chip">
-                  <span>${c.name}</span>
-                  <button class="btn-add-cand" data-cand-id="${c.entity_id}" data-cand-class="${c.device_class}">
+                  <span>${this._getTypeIcon(c.device_class || 'generic')} <strong>${c.name}</strong> <small style="opacity: 0.7; font-size: 11px;">(${c.entity_id})</small></span>
+                  <button class="btn-add-cand" data-cand-id="${c.entity_id}" data-cand-class="${c.device_class || 'smoke'}">
                     + ${this._t("addCandidate")}
                   </button>
                 </div>
@@ -1348,9 +1438,23 @@
           <div class="modal-backdrop">
             <div class="modal-content">
               <h3>${s.entity_id ? this._t("edit") : this._t("btnAddSensor")}</h3>
-              <div class="form-group">
+              <div class="form-group" style="position: relative;">
                 <label class="form-label">Entity ID</label>
-                <input type="text" class="form-control" id="modal-sensor-entity" value="${s.entity_id || ''}" ${s.entity_id ? 'readonly' : ''} placeholder="binary_sensor.rauchmelder_kuche">
+                <input
+                  type="text"
+                  class="form-control"
+                  id="modal-sensor-entity"
+                  value="${s.entity_id || ''}"
+                  ${s.entity_id ? 'readonly' : ''}
+                  placeholder="binary_sensor.rauchmelder_kuche"
+                  autocomplete="off"
+                >
+                <div class="suggestions-dropdown" id="sensor-suggestions"></div>
+                ${!s.entity_id ? `
+                  <small style="color: var(--secondary-text-color, #757575); font-size: 11px; display: block; margin-top: 4px;">
+                    Tippen Sie zur Live-Suche oder wählen Sie aus den gefundenen Sensoren.
+                  </small>
+                ` : ''}
               </div>
               <div class="form-group">
                 <label class="form-label">Name</label>
@@ -1548,9 +1652,11 @@
         btn.addEventListener('click', (e) => {
           const entityId = e.currentTarget.dataset.candId;
           const devClass = e.currentTarget.dataset.candClass || 'smoke';
+          const cand = (this._candidates || []).find(c => c.entity_id === entityId);
+          const friendlyName = (cand && cand.name) ? cand.name : entityId.split('.')[1].replace(/_/g, ' ');
           this._editingSensor = {
             entity_id: entityId,
-            name: entityId.split('.')[1].replace(/_/g, ' '),
+            name: friendlyName,
             zone: 'general',
             type: devClass === 'moisture' ? 'moisture' : devClass === 'gas' ? 'gas' : devClass === 'carbon_monoxide' ? 'carbon_monoxide' : devClass === 'heat' ? 'heat' : 'smoke',
             pre_alarm_delay: 0,
@@ -1570,6 +1676,137 @@
           this._editingSensor = {};
           this._modalOpen = 'sensor';
           this._render();
+        });
+      }
+
+      // Live suggestions for entity_id input in Sensor modal
+      const entityInput = root.querySelector('#modal-sensor-entity');
+      const suggestionsBox = root.querySelector('#sensor-suggestions');
+      const nameInput = root.querySelector('#modal-sensor-name');
+      const typeSelect = root.querySelector('#modal-sensor-type');
+
+      if (entityInput && suggestionsBox && !entityInput.readOnly) {
+        const getCandidateList = () => {
+          const list = [];
+          const seen = new Set();
+          (this._candidates || []).forEach(c => {
+            if (!seen.has(c.entity_id)) {
+              seen.add(c.entity_id);
+              list.push({
+                entity_id: c.entity_id,
+                name: c.name || c.entity_id,
+                device_class: c.device_class || "",
+                monitored: !!(this._config && this._config.sensors && this._config.sensors[c.entity_id]),
+                is_hazard: !!c.is_hazard_class,
+              });
+            }
+          });
+          if (this._hass && this._hass.states) {
+            Object.keys(this._hass.states).forEach(eid => {
+              if (eid.startsWith("binary_sensor.") && !seen.has(eid)) {
+                seen.add(eid);
+                const st = this._hass.states[eid];
+                const dc = (st.attributes && st.attributes.device_class) || "";
+                const isHz = ["smoke", "moisture", "gas", "carbon_monoxide", "heat"].includes(dc) ||
+                  ["smoke", "rauch", "water", "wasser", "leak", "gas", "co_", "heat"].some(w => eid.toLowerCase().includes(w));
+                list.push({
+                  entity_id: eid,
+                  name: (st.attributes && st.attributes.friendly_name) || eid,
+                  device_class: dc,
+                  monitored: !!(this._config && this._config.sensors && this._config.sensors[eid]),
+                  is_hazard: isHz,
+                });
+              }
+            });
+          }
+          return list;
+        };
+
+        const renderSuggestions = (query = "") => {
+          const q = (query || "").toLowerCase().trim();
+          const all = getCandidateList();
+          let matches = all;
+          if (q) {
+            matches = all.filter(c =>
+              c.entity_id.toLowerCase().includes(q) ||
+              (c.name && c.name.toLowerCase().includes(q))
+            );
+          }
+          matches.sort((a, b) => {
+            if (a.monitored !== b.monitored) return a.monitored ? 1 : -1;
+            if (a.is_hazard !== b.is_hazard) return a.is_hazard ? -1 : 1;
+            return a.name.localeCompare(b.name);
+          });
+
+          if (matches.length === 0) {
+            suggestionsBox.innerHTML = `
+              <div style="padding: 10px 14px; font-size: 12px; color: var(--secondary-text-color, #757575);">
+                Keine passenden Sensoren gefunden.
+              </div>
+            `;
+            suggestionsBox.classList.add('visible');
+            return;
+          }
+
+          const topMatches = matches.slice(0, 25);
+          suggestionsBox.innerHTML = topMatches.map(c => `
+            <div class="suggestion-item" data-entity-id="${c.entity_id}" data-name="${c.name.replace(/"/g, '&quot;')}" data-class="${c.device_class}">
+              <div class="suggestion-info">
+                <span class="suggestion-name">
+                  ${this._getTypeIcon(c.device_class || 'generic')} <strong>${c.name}</strong>
+                </span>
+                <span class="suggestion-entity">${c.entity_id}</span>
+              </div>
+              <div>
+                ${c.monitored ? `
+                  <span class="badge" style="background: rgba(127,127,127,0.18); font-size: 11px;">Bereits überwacht</span>
+                ` : `
+                  <span class="badge badge-${c.device_class || 'generic'}" style="font-size: 11px;">
+                    ${this._getTypeName(c.device_class || 'generic')}
+                  </span>
+                `}
+              </div>
+            </div>
+          `).join('');
+          suggestionsBox.classList.add('visible');
+
+          suggestionsBox.querySelectorAll('.suggestion-item').forEach(item => {
+            item.addEventListener('mousedown', (e) => {
+              e.preventDefault();
+              const eid = item.dataset.entityId;
+              const name = item.dataset.name;
+              const devClass = item.dataset.class;
+
+              entityInput.value = eid;
+              if (nameInput && (!nameInput.value || nameInput.value === eid)) {
+                nameInput.value = name;
+              }
+              if (typeSelect && devClass) {
+                const mapType = devClass === 'moisture' ? 'moisture'
+                  : devClass === 'gas' ? 'gas'
+                  : devClass === 'carbon_monoxide' ? 'carbon_monoxide'
+                  : devClass === 'heat' ? 'heat'
+                  : devClass === 'smoke' ? 'smoke'
+                  : null;
+                if (mapType) typeSelect.value = mapType;
+              }
+              suggestionsBox.classList.remove('visible');
+            });
+          });
+        };
+
+        entityInput.addEventListener('input', (e) => {
+          renderSuggestions(e.target.value);
+        });
+
+        entityInput.addEventListener('focus', (e) => {
+          renderSuggestions(e.target.value);
+        });
+
+        entityInput.addEventListener('blur', () => {
+          setTimeout(() => {
+            suggestionsBox.classList.remove('visible');
+          }, 200);
         });
       }
 
