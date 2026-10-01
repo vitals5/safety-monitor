@@ -181,6 +181,7 @@
       this._modalOpen = null; // 'sensor' | 'zone' | 'action'
       this._statusPollInterval = null;
       this._lang = "en";
+      this._candidateScrollTop = 0;
     }
 
     set hass(hass) {
@@ -364,6 +365,12 @@
           selStart = el.selectionStart;
           selEnd = el.selectionEnd;
         }
+      }
+
+      // Preserve scroll position of candidate list if present
+      const curCandList = this.shadowRoot && this.shadowRoot.querySelector('.candidate-list');
+      if (curCandList) {
+        this._candidateScrollTop = curCandList.scrollTop;
       }
 
       const state = this._config.state || "normal";
@@ -1220,6 +1227,24 @@
 
       this._attachEventListeners();
 
+      if (typeof this._candidateScrollTop === 'number' && this._candidateScrollTop > 0) {
+        const restoredCandList = this.shadowRoot.querySelector('.candidate-list');
+        if (restoredCandList) {
+          restoredCandList.scrollTop = this._candidateScrollTop;
+          requestAnimationFrame(() => {
+            if (restoredCandList) {
+              restoredCandList.scrollTop = this._candidateScrollTop;
+            }
+          });
+          setTimeout(() => {
+            const listEl = this.shadowRoot && this.shadowRoot.querySelector('.candidate-list');
+            if (listEl && this._candidateScrollTop > 0) {
+              listEl.scrollTop = this._candidateScrollTop;
+            }
+          }, 30);
+        }
+      }
+
       if (activeId) {
         const restored = this.shadowRoot.querySelector('#' + activeId);
         if (restored) {
@@ -1388,7 +1413,7 @@
             <td>
               ${s.double_knock ? '<span class="badge badge-feature-dk">Double-Knock</span> ' : ''}
               ${s.auto_ack_on_clear ? '<span class="badge badge-feature-ack">Auto-Ack</span> ' : ''}
-              ${(s.linked_shutoff && s.linked_shutoff.length > 0) ? `<span class="badge badge-feature-shutoff">${s.linked_shutoff.length} Aktoren</span>` : ''}
+              ${(!s.double_knock && !s.auto_ack_on_clear) ? '<span style="color: var(--secondary-text-color, #757575); font-size: 12px;">Standard</span>' : ''}
             </td>
             <td>
               <span class="badge ${isOn ? 'badge-status-on' : isOff ? 'badge-status-off' : 'badge-status-offline'}">
@@ -1529,7 +1554,10 @@
           <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--divider-color, rgba(127, 127, 127, 0.15));">
             <div>
               <strong>${a.name}</strong> <span style="font-size: 12px; color: var(--secondary-text-color, #757575);">(${a.service})</span><br>
-              <small style="color: var(--secondary-text-color, #757575);">Gefahrentypen: ${(a.trigger_types || []).join(', ') || 'Alle'}</small>
+              <small style="color: var(--secondary-text-color, #757575);">
+                Gefahrentypen: ${(a.trigger_types && a.trigger_types.length > 0) ? a.trigger_types.map(t => this._getTypeName(t)).join(', ') : 'Alle'}
+                ${(a.target && a.target.entity_id) ? ` · Ziel: <code>${Array.isArray(a.target.entity_id) ? a.target.entity_id.join(', ') : a.target.entity_id}</code>` : ''}
+              </small>
             </div>
             <div style="display: flex; gap: 6px;">
               <button class="btn-sm action-test btn-test-action" data-action-id="${a.id}">⚡ ${this._t("testAction")}</button>
@@ -1706,20 +1734,6 @@
                   ${this._t("autoAckHelp")}
                 </label>
               </div>
-
-              <!-- Optionale erweiterte Direkt-Aktoren für diesen Sensor -->
-              <details style="margin-top: 14px; margin-bottom: 16px; padding: 12px 14px; border-radius: 10px; border: 1px dashed var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.3))); background: var(--secondary-background-color, rgba(127, 127, 127, 0.05));" ${(s.linked_shutoff && s.linked_shutoff.length > 0) ? 'open' : ''}>
-                <summary style="cursor: pointer; font-size: 13px; font-weight: 600; color: var(--primary-color, #0288d1); user-select: none;">
-                  ⚙️ ${this._t("linkedShutoffs")} (Optional / Sensor-Direktaktoren)
-                </summary>
-                <div style="margin-top: 10px;">
-                  <small style="color: var(--secondary-text-color, #757575); font-size: 11px; display: block; margin-bottom: 8px; line-height: 1.4;">
-                    💡 <em>Hinweis:</em> Allgemeine Notfall-Aktionen (z. B. Hauptwasserhahn schließen bei Wasserleck, Lüftung stoppen bei Rauch) werden zentral im Tab <strong>⚡ Notfall-Aktionen</strong> nach Eskalationsstufen verwaltet. Tragen Sie hier nur Aktoren ein, die ausschließlich für <em>diesen einzelnen</em> Melder direkt geschaltet werden sollen.
-                  </small>
-                  <label class="form-label" style="font-size: 12px;">Spezifische Aktoren (kommagetrennt)</label>
-                  <input type="text" class="form-control" id="modal-sensor-shutoffs" value="${(s.linked_shutoff || []).join(', ')}" placeholder="valve.lokales_ventil, switch.raum_strom">
-                </div>
-              </details>
               <div class="modal-actions">
                 <button class="btn btn-secondary" id="btn-modal-cancel">${this._t("cancel")}</button>
                 <button class="btn btn-primary" id="btn-modal-save-sensor">${this._t("save")}</button>
@@ -1757,7 +1771,7 @@
               </div>
               <div class="modal-actions">
                 <button class="btn btn-secondary" id="btn-modal-cancel">${this._t("cancel")}</button>
-                <button class="btn btn-primary" id="btn-modal-save-zone">${this._t("save")}</button>
+                <button class="btn-modal-save-zone btn btn-primary" id="btn-modal-save-zone">${this._t("save")}</button>
               </div>
             </div>
           </div>
@@ -1781,18 +1795,47 @@
                   <option value="notification" ${a.phase === 'notification' ? 'selected' : ''}>📱 Stufe 2: Benachrichtigung</option>
                   <option value="acoustic_optical" ${a.phase === 'acoustic_optical' ? 'selected' : ''}>🚨 Stufe 3: Akustisch & Optisch</option>
                 </select>
+                <small style="color: var(--secondary-text-color, #757575); font-size: 11px; display: block; margin-top: 4px;">
+                  Stufe 1 steuert Notfall-Aktoren (z. B. Absperrventile, Lüftung aus). Stufe 2 sendet Push-Meldungen. Stufe 3 aktiviert Sirenen und Beleuchtung.
+                </small>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Auslösen bei folgenden Gefahrentypen</label>
+                <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px;">
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
+                    <input type="checkbox" class="act-type-cb" value="smoke" ${(!a.trigger_types || a.trigger_types.includes('smoke')) ? 'checked' : ''}> 🔥 ${this._t("typeSmoke")}
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
+                    <input type="checkbox" class="act-type-cb" value="moisture" ${(!a.trigger_types || a.trigger_types.includes('moisture')) ? 'checked' : ''}> 💧 ${this._t("typeMoisture")}
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
+                    <input type="checkbox" class="act-type-cb" value="gas" ${(!a.trigger_types || a.trigger_types.includes('gas')) ? 'checked' : ''}> ☣️ ${this._t("typeGas")}
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
+                    <input type="checkbox" class="act-type-cb" value="carbon_monoxide" ${(!a.trigger_types || a.trigger_types.includes('carbon_monoxide')) ? 'checked' : ''}> ⚠️ ${this._t("typeCO")}
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
+                    <input type="checkbox" class="act-type-cb" value="heat" ${(!a.trigger_types || a.trigger_types.includes('heat')) ? 'checked' : ''}> 🌡️ ${this._t("typeHeat")}
+                  </label>
+                </div>
               </div>
               <div class="form-group">
                 <label class="form-label">${this._t("actionService")}</label>
                 <input type="text" class="form-control" id="modal-act-service" value="${a.service || ''}" placeholder="valve.close_valve">
+                <small style="color: var(--secondary-text-color, #757575); font-size: 11px; display: block; margin-top: 4px;">
+                  z. B. <code>valve.close_valve</code>, <code>fan.turn_off</code>, <code>switch.turn_off</code>, <code>siren.turn_on</code>
+                </small>
               </div>
               <div class="form-group">
                 <label class="form-label">${this._t("actionTarget")}</label>
                 <input type="text" class="form-control" id="modal-act-target" value="${(a.target && a.target.entity_id) ? (Array.isArray(a.target.entity_id) ? a.target.entity_id.join(', ') : a.target.entity_id) : ''}" placeholder="valve.hauptwasser">
+                <small style="color: var(--secondary-text-color, #757575); font-size: 11px; display: block; margin-top: 4px;">
+                  Ziel-Entitäten (z. B. Notfall-Absperrventile, Lüfter, Schalter). Kommagetrennt bei mehreren Entitäten.
+                </small>
               </div>
               <div class="form-group">
                 <label class="form-label">${this._t("actionPayload")}</label>
-                <textarea class="form-control" id="modal-act-data" rows="4" style="font-family:monospace; font-size:12px;">${JSON.stringify(a.data || {}, null, 2)}</textarea>
+                <textarea class="form-control" id="modal-act-data" rows="3" style="font-family:monospace; font-size:12px;">${JSON.stringify(a.data || {}, null, 2)}</textarea>
               </div>
               <div class="modal-actions">
                 <button class="btn btn-secondary" id="btn-modal-cancel">${this._t("cancel")}</button>
@@ -1873,9 +1916,24 @@
       // Sensor Row Action Listeners
       this._attachSensorRowListeners();
 
+      // Candidate List Scroll Tracking & Retention
+      const candList = root.querySelector('.candidate-list');
+      if (candList) {
+        candList.addEventListener('scroll', () => {
+          this._candidateScrollTop = candList.scrollTop;
+        }, { passive: true });
+        if (typeof this._candidateScrollTop === 'number' && this._candidateScrollTop > 0) {
+          candList.scrollTop = this._candidateScrollTop;
+        }
+      }
+
       // Add Candidate Quick-Button
       root.querySelectorAll('.btn-add-cand').forEach(btn => {
         btn.addEventListener('click', (e) => {
+          const cList = root.querySelector('.candidate-list');
+          if (cList) {
+            this._candidateScrollTop = cList.scrollTop;
+          }
           const entityId = e.currentTarget.dataset.candId;
           const devClass = e.currentTarget.dataset.candClass || 'smoke';
           const cand = (this._candidates || []).find(c => c.entity_id === entityId);
@@ -2154,8 +2212,7 @@
           const delay = parseInt(root.querySelector('#modal-sensor-pre-alarm').value, 10) || 0;
           const dk = root.querySelector('#modal-sensor-double-knock').checked;
           const autoAck = root.querySelector('#modal-sensor-auto-ack').checked;
-          const shutoffsRaw = root.querySelector('#modal-sensor-shutoffs').value;
-          const shutoffs = shutoffsRaw.split(',').map(s => s.trim()).filter(Boolean);
+          const shutoffs = (this._editingSensor && this._editingSensor.linked_shutoff) || [];
 
           if (!entity) {
             alert("Entity ID ist erforderlich");
@@ -2240,6 +2297,8 @@
           }
 
           const target = targetRaw ? { entity_id: targetRaw.split(',').map(s => s.trim()) } : {};
+          const selectedTypes = Array.from(root.querySelectorAll('.act-type-cb:checked')).map(cb => cb.value);
+          const triggerTypes = selectedTypes.length > 0 ? selectedTypes : ["smoke", "moisture", "gas", "carbon_monoxide", "heat"];
 
           try {
             await this._hass.callWS({
@@ -2252,7 +2311,7 @@
                 target: target,
                 data: dataObj,
                 enabled: true,
-                trigger_types: ["smoke", "moisture", "gas", "carbon_monoxide", "heat"],
+                trigger_types: triggerTypes,
               }
             });
             this._modalOpen = null;
