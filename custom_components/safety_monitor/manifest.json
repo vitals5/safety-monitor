@@ -1,12 +1,18 @@
 {
   "domain": "safety_monitor",
   "name": "Safety Monitor",
-  "codeowners": ["@vitals5"],
+  "codeowners": [
+    "@vitals5"
+  ],
   "config_flow": true,
+  "dependencies": [
+    "frontend",
+    "http",
+    "websocket_api"
+  ],
   "documentation": "https://github.com/vitals5/safety-monitor",
-  "issue_tracker": "https://github.com/vitals5/safety-monitor/issues",
   "iot_class": "local_push",
-  "version": "1.0.7",
+  "issue_tracker": "https://github.com/vitals5/safety-monitor/issues",
   "requirements": [],
-  "dependencies": ["frontend", "http", "websocket_api"]
+  "version": "1.0.7"
 }

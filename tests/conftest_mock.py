@@ -178,6 +178,8 @@ helpers_mock.config_validation.entity_id = lambda v: str(v)
 helpers_mock.config_validation.string = lambda v: str(v)
 helpers_mock.config_validation.boolean = lambda v: bool(v)
 helpers_mock.config_validation.positive_int = lambda v: int(v)
+helpers_mock.config_validation.config_entry_only_config_schema = lambda domain: lambda v: v
+helpers_mock.config_validation.empty_config_schema = lambda domain: lambda v: v
 
 ha_mock.__path__ = []
 core_mock.__path__ = []
