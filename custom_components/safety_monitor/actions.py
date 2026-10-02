@@ -257,8 +257,15 @@ class ActionEngine:
             raise HomeAssistantError(f"Keine Ziel-Entität für '{service_raw}' hinterlegt! Bitte Aktion bearbeiten und ein Ziel festlegen.")
 
 
-        # Smart adaptation for script calls
-        if domain == "script":
+        # Smart adaptation for services that reject 'target' in Home Assistant
+        # In Home Assistant, legacy notify services (notify.notify, notify.mobile_app_*, etc.),
+        # persistent_notification, and direct script services do NOT accept an entity target dict.
+        # Passing target causes Home Assistant voluptuous validation to fail with "not a valid option at 'target'".
+        if domain == "notify" and service != "send_message":
+            target = {}
+        elif domain == "persistent_notification":
+            target = {}
+        elif domain == "script":
             if service == "turn_on":
                 # script.turn_on expects parameters to be inside "variables": { ... }
                 if isinstance(rendered_data, dict) and rendered_data and "variables" not in rendered_data:

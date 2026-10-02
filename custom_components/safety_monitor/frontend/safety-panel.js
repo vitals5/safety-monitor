@@ -90,7 +90,7 @@
       actionTriggerTypes: "Auslösen bei folgenden Gefahrentypen:",
       toggleMenu: "Home Assistant Seitenmenü öffnen / schließen",
       targetPlaceholder: "z. B. valve.hauptwasser, siren.alarm",
-      targetHelp: "Tippe, um Home Assistant Entitäten zu suchen (Ventile, Sirenen, Schalter, Lichter, Notify etc.).",
+      targetHelp: "Tippe, um Entitäten zu suchen (Ventile, Sirenen, Schalter, Lichter etc.). Hinweis: Bei notify.notify, Benachrichtigungen oder Skripten ist kein Ziel erforderlich (kann leer bleiben).",
       targetPreviewTitle: "Vorschau der ausgewählten Ziel-Entität(en):",
       serviceSelectLabel: "Mögliche Dienste für Ziel-Entität:",
       serviceCustomOption: "✏️ Manuelle Eingabe / Anderer Dienst...",
@@ -194,7 +194,7 @@
       actionTriggerTypes: "Trigger for following hazard types:",
       toggleMenu: "Toggle Home Assistant sidebar menu",
       targetPlaceholder: "e.g. valve.main_water, siren.alarm",
-      targetHelp: "Type to search Home Assistant entities (valves, sirens, switches, lights, notify, etc.).",
+      targetHelp: "Type to search entities (valves, sirens, switches, lights, etc.). Note: For notify.notify, notifications or scripts, target is optional (can be left blank).",
       targetPreviewTitle: "Preview of target entity/entities:",
       serviceSelectLabel: "Available services for target entity:",
       serviceCustomOption: "✏️ Custom / Manual Service...",
@@ -2579,11 +2579,12 @@
               </div>
 
               <!-- Modal Actions -->
-              <div class="modal-actions" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-                <div>
+              <div class="modal-actions" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
+                <div style="display: flex; flex-direction: column; gap: 6px;">
                   <button type="button" class="btn action-modal-test" id="btn-modal-test-action" title="Dienst sofort mit Beispieldaten testen">
                     ⚡ ${this._t("testAction")}
                   </button>
+                  <div id="modal-test-action-feedback" style="display: none; font-size: 12px; max-width: 360px; word-break: break-word; line-height: 1.35;"></div>
                 </div>
                 <div style="display: flex; gap: 8px;">
                   <button class="btn btn-secondary" id="btn-modal-cancel">${this._t("cancel")}</button>
@@ -3384,6 +3385,12 @@
           const selectedTypes = Array.from(root.querySelectorAll('.act-type-cb:checked')).map(cb => cb.value);
           const triggerTypes = selectedTypes.length > 0 ? selectedTypes : ["smoke", "moisture", "gas", "carbon_monoxide", "heat"];
 
+          const feedbackEl = root.querySelector('#modal-test-action-feedback');
+          if (feedbackEl) {
+            feedbackEl.style.display = 'none';
+            feedbackEl.innerHTML = '';
+          }
+
           const origContent = btnTestModalAction.innerHTML;
           btnTestModalAction.disabled = true;
           btnTestModalAction.innerHTML = '⏳ Testen...';
@@ -3409,23 +3416,33 @@
             }
             btnTestModalAction.innerHTML = '✅ Erfolgreich';
             btnTestModalAction.classList.add('test-success');
+            if (feedbackEl) {
+              feedbackEl.style.display = 'block';
+              feedbackEl.style.color = '#2e7d32';
+              feedbackEl.innerHTML = '✅ Dienstaufruf erfolgreich ausgeführt!';
+            }
             setTimeout(() => {
               btnTestModalAction.innerHTML = origContent;
               btnTestModalAction.classList.remove('test-success');
               btnTestModalAction.disabled = false;
-            }, 2500);
+              if (feedbackEl) feedbackEl.style.display = 'none';
+            }, 3000);
           } catch (err) {
             const rawMsg = err?.message || err?.error || "Fehler aufgetreten";
-            const shortMsg = rawMsg.length > 26 ? rawMsg.slice(0, 23) + '...' : rawMsg;
-            btnTestModalAction.innerHTML = `❌ ${shortMsg}`;
+            btnTestModalAction.innerHTML = '❌ Fehlgeschlagen';
             btnTestModalAction.title = rawMsg;
             btnTestModalAction.classList.add('test-error');
+            if (feedbackEl) {
+              feedbackEl.style.display = 'block';
+              feedbackEl.style.color = '#d32f2f';
+              feedbackEl.innerHTML = `⚠️ ${rawMsg}`;
+            }
             setTimeout(() => {
               btnTestModalAction.innerHTML = origContent;
               btnTestModalAction.title = '';
               btnTestModalAction.classList.remove('test-error');
               btnTestModalAction.disabled = false;
-            }, 3500);
+            }, 4500);
           }
         });
       }

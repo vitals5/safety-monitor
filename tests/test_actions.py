@@ -355,6 +355,31 @@ class TestActionEngine(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(script_call[1].get("target"))
         self.assertIn("Rauch", script_call[0][2]["text"])
 
+    async def test_notify_notify_suppresses_target(self) -> None:
+        """Test notify.notify suppresses target to avoid voluptuous 'not a valid option at target'."""
+        action_dict = {
+            "name": "Notify Action",
+            "phase": PHASE_NOTIFICATION,
+            "service": "notify.notify",
+            "target": {"entity_id": ["notify.notify"]},
+            "data": {
+                "title": "🚨 Safety Monitor Alarm",
+                "message": "Achtung: {{ hazard_type }} erkannt durch {{ sensor_name }} in Zone {{ zone }} um {{ timestamp }}!",
+            },
+            "trigger_types": [TYPE_SMOKE],
+        }
+        res = await self.engine.async_test_action_dict(action_dict)
+        self.assertTrue(res)
+
+        calls = self.hass.services.async_call.call_args_list
+        notify_call = next((c for c in reversed(calls) if c[0][0] == "notify" and c[0][1] == "notify"), None)
+        self.assertIsNotNone(notify_call)
+        # Target must be None so HA does not fail validation
+        self.assertIsNone(notify_call[1].get("target"))
+        payload = notify_call[0][2]
+        self.assertEqual(payload["title"], "🚨 Safety Monitor Alarm")
+        self.assertIn("Achtung: Rauch erkannt durch", payload["message"])
+
 
 if __name__ == "__main__":
     unittest.main()
