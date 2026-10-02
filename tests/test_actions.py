@@ -11,6 +11,7 @@ from custom_components.safety_monitor.const import (
     PHASE_CUTOFF,
     PHASE_NOTIFICATION,
     PHASE_RESTORE,
+    PHASE_SYSTEM,
     TYPE_MOISTURE,
     TYPE_SMOKE,
 )
@@ -379,6 +380,61 @@ class TestActionEngine(unittest.IsolatedAsyncioTestCase):
         payload = notify_call[0][2]
         self.assertEqual(payload["title"], "🚨 Safety Monitor Alarm")
         self.assertIn("Achtung: Rauch erkannt durch", payload["message"])
+
+    async def test_execute_system_phase(self) -> None:
+        """Test executing PHASE_SYSTEM actions on low battery or offline event."""
+        await self.storage.async_save_action({
+            "name": "System Push Alert",
+            "phase": PHASE_SYSTEM,
+            "service": "notify.notify",
+            "data": {
+                "title": "{{ title }}",
+                "message": "{{ message }} (Batterie: {{ battery_level }}%)",
+            },
+            "enabled": True,
+        })
+
+        context = {
+            "sensor_name": "Keller Rauchmelder",
+            "entity_id": "binary_sensor.smoke_basement",
+            "zone": "Keller",
+            "event": "battery_low",
+            "battery_level": 11.5,
+            "title": "🪫 Schwache Batterie: Keller Rauchmelder",
+            "message": "Batteriestand kritisch!",
+        }
+
+        executed = await self.engine.async_execute_phase(PHASE_SYSTEM, context)
+        self.assertEqual(len(executed), 1)
+
+        calls = self.hass.services.async_call.call_args_list
+        notify_call = next((c for c in reversed(calls) if c[0][0] == "notify" and c[0][1] == "notify"), None)
+        self.assertIsNotNone(notify_call)
+        payload = notify_call[0][2]
+        self.assertEqual(payload["title"], "🪫 Schwache Batterie: Keller Rauchmelder")
+        self.assertIn("Batteriestand kritisch! (Batterie: 11.5%)", payload["message"])
+
+    async def test_manual_test_action_system_phase(self) -> None:
+        """Test testing a system action generates realistic battery sample context."""
+        action_dict = {
+            "name": "Test System Warning",
+            "phase": PHASE_SYSTEM,
+            "service": "notify.notify",
+            "data": {
+                "title": "{{ title }}",
+                "message": "{{ message }} - Event: {{ event }}",
+            },
+        }
+
+        res = await self.engine.async_test_action_dict(action_dict)
+        self.assertTrue(res)
+
+        calls = self.hass.services.async_call.call_args_list
+        notify_call = next((c for c in reversed(calls) if c[0][0] == "notify" and c[0][1] == "notify"), None)
+        self.assertIsNotNone(notify_call)
+        payload = notify_call[0][2]
+        self.assertIn("Schwache Batterie", payload["title"])
+        self.assertIn("Event: battery_low", payload["message"])
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ import os
 
 DOMAIN = "safety_monitor"
 NAME = "Safety Monitor"
-VERSION = "1.0.19"
+VERSION = "1.0.20"
 MANUFACTURER = "Safety Monitor"
 
 # Storage
@@ -60,12 +60,14 @@ PHASE_CUTOFF = "cutoff"
 PHASE_NOTIFICATION = "notification"
 PHASE_ACOUSTIC_OPTICAL = "acoustic_optical"
 PHASE_RESTORE = "restore"
+PHASE_SYSTEM = "system"
 
 ESCALATION_PHASES = [
     PHASE_CUTOFF,
     PHASE_NOTIFICATION,
     PHASE_ACOUSTIC_OPTICAL,
     PHASE_RESTORE,
+    PHASE_SYSTEM,
 ]
 
 # Default Timeouts and Limits (in seconds)
@@ -82,6 +84,9 @@ EVENT_SAFETY_ALARM_TRIGGERED = "safety_monitor_alarm_triggered"
 EVENT_SAFETY_ALARM_SILENCED = "safety_monitor_alarm_silenced"
 EVENT_SAFETY_ALARM_RESET = "safety_monitor_alarm_reset"
 EVENT_SAFETY_TEST_MODE_CHANGED = "safety_monitor_test_mode_changed"
+EVENT_SAFETY_BATTERY_LOW = "safety_monitor_battery_low"
+EVENT_SAFETY_SENSOR_OFFLINE = "safety_monitor_sensor_offline"
+EVENT_SAFETY_SENSOR_ONLINE = "safety_monitor_sensor_online"
 
 # Dispatcher Signals
 SIGNAL_SAFETY_MONITOR_UPDATED = "safety_monitor_updated"

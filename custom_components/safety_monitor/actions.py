@@ -15,6 +15,7 @@ from .const import (
     PHASE_CUTOFF,
     PHASE_NOTIFICATION,
     PHASE_RESTORE,
+    PHASE_SYSTEM,
     TYPE_CO,
     TYPE_GAS,
     TYPE_GENERIC,
@@ -190,8 +191,13 @@ class ActionEngine:
                 continue
 
             trigger_types = action.get("trigger_types", [])
-            if trigger_types and hazard_type not in trigger_types and hazard_type != "all_clear":
-                continue
+            if trigger_types:
+                if phase == PHASE_SYSTEM:
+                    event_type = context.get("event", context.get("event_type", ""))
+                    if event_type not in trigger_types and "all" not in trigger_types and hazard_type not in trigger_types:
+                        continue
+                elif hazard_type not in trigger_types and hazard_type != "all_clear":
+                    continue
 
             # In test mode: skip physical cutoffs and acoustic sirens
             if is_test_mode:
@@ -347,11 +353,16 @@ class ActionEngine:
         trigger_types = action.get("trigger_types", [])
 
         is_restore = phase in (PHASE_RESTORE, "restore", "all_clear")
+        is_system = phase in (PHASE_SYSTEM, "system", "maintenance")
 
         if is_restore:
             target_hazard = "restore"
             display_name = "Entwarnung"
             state = "normal"
+        elif is_system:
+            target_hazard = "system"
+            display_name = "Systemwarnung"
+            state = "battery_low"
         else:
             state = "triggered"
             if trigger_types and isinstance(trigger_types, list) and len(trigger_types) > 0:
@@ -424,7 +435,7 @@ class ActionEngine:
         formatted_time = now.strftime("%H:%M:%S")
         formatted_date = now.strftime("%d.%m.%Y")
 
-        return {
+        ctx = {
             "sensor_name": sensor_name,
             "entity_id": entity_id,
             "zone": zone_name,
@@ -434,6 +445,19 @@ class ActionEngine:
             "date": formatted_date,
             "state": state,
         }
+
+        if is_system:
+            ctx.update({
+                "event": "battery_low",
+                "event_type": "battery_low",
+                "battery_level": 12,
+                "threshold": 15,
+                "battery_entity": f"{entity_id}_battery",
+                "title": f"🪫 Schwache Batterie: {sensor_name}",
+                "message": f"Der Sicherheitsmelder '{sensor_name}' in Zone '{zone_name}' meldet einen schwachen Batteriestand von 12%!",
+            })
+
+        return ctx
 
     async def async_test_action(
         self, action_id: str, context: dict[str, Any] | None = None

@@ -1,14 +1,19 @@
 """Tests for SafetyCoordinator and Hazard State Machine."""
 from __future__ import annotations
 
+import asyncio
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from tests import conftest_mock  # noqa: F401
 from custom_components.safety_monitor.actions import ActionEngine
 from custom_components.safety_monitor.const import (
+    EVENT_SAFETY_BATTERY_LOW,
+    EVENT_SAFETY_SENSOR_OFFLINE,
+    EVENT_SAFETY_SENSOR_ONLINE,
     PHASE_ACOUSTIC_OPTICAL,
     PHASE_RESTORE,
+    PHASE_SYSTEM,
     STATE_NORMAL,
     STATE_PRE_ALARM,
     STATE_SILENCED,
@@ -26,6 +31,7 @@ class TestSafetyCoordinator(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.hass = MagicMock()
         self.hass.bus.async_fire = MagicMock()
+        self.hass.async_create_task = lambda coro: asyncio.create_task(coro)
         self.storage = SafetyStorage(self.hass)
         self.storage._store.async_load = AsyncMock(return_value=None)
         self.storage._store.async_save = AsyncMock()
@@ -378,6 +384,92 @@ class TestSafetyCoordinator(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(batteries["binary_sensor.normal_detector"]["level"], 85.0)
         self.assertFalse(batteries["binary_sensor.normal_detector"]["low"])
         self.assertNotIn("binary_sensor.normal_detector", low_batteries)
+
+    async def test_system_alert_low_battery_triggers_action_and_event(self) -> None:
+        """Test that low battery triggers PHASE_SYSTEM actions and bus event."""
+        bat_sensor_state = MagicMock()
+        bat_sensor_state.state = "9.5"
+        bat_sensor_state.attributes = {}
+
+        self.hass.states.get = lambda eid: bat_sensor_state if eid == "sensor.smoke_crit_battery" else None
+
+        await self.storage.async_save_sensor({
+            "entity_id": "binary_sensor.smoke_crit",
+            "name": "Attic Smoke Detector",
+            "zone": "attic",
+            "battery_entity": "sensor.smoke_crit_battery",
+            "enabled": True,
+        })
+
+        self.coordinator._async_check_all_batteries()
+        await asyncio.sleep(0.01)
+
+        # Check action engine was called with PHASE_SYSTEM
+        calls = self.actions.async_execute_phase.call_args_list
+        system_call = next((c for c in calls if c[0][0] == PHASE_SYSTEM), None)
+        self.assertIsNotNone(system_call)
+        ctx = system_call[0][1]
+        self.assertEqual(ctx["event"], "battery_low")
+        self.assertEqual(ctx["battery_level"], 9.5)
+        self.assertIn("Attic Smoke Detector", ctx["title"])
+
+        # Check bus event fired
+        bus_calls = self.hass.bus.async_fire.call_args_list
+        bat_event = next((c for c in bus_calls if c[0][0] == EVENT_SAFETY_BATTERY_LOW), None)
+        self.assertIsNotNone(bat_event)
+
+    async def test_system_alert_sensor_offline_and_online(self) -> None:
+        """Test that sensor becoming unavailable triggers offline system alert and online event when restored."""
+        await self.storage.async_save_sensor({
+            "entity_id": "binary_sensor.hallway_smoke",
+            "name": "Hallway Smoke Detector",
+            "zone": "hallway",
+            "enabled": True,
+        })
+
+        # 1. Sensor becomes unavailable (offline)
+        offline_state = MagicMock()
+        offline_state.state = "unavailable"
+        offline_state.attributes = {}
+
+        event_offline = MagicMock()
+        event_offline.data = {
+            "entity_id": "binary_sensor.hallway_smoke",
+            "new_state": offline_state,
+        }
+        await self.coordinator._async_on_sensor_state_change(event_offline)
+        await asyncio.sleep(0.01)
+
+        self.assertIn("binary_sensor.hallway_smoke", self.coordinator.offline_sensors)
+
+        # Check action engine called with PHASE_SYSTEM
+        calls = self.actions.async_execute_phase.call_args_list
+        system_call = next((c for c in calls if c[0][0] == PHASE_SYSTEM), None)
+        self.assertIsNotNone(system_call)
+        self.assertEqual(system_call[0][1]["event"], "sensor_offline")
+
+        # Check EVENT_SAFETY_SENSOR_OFFLINE bus event
+        bus_calls = self.hass.bus.async_fire.call_args_list
+        off_event = next((c for c in bus_calls if c[0][0] == EVENT_SAFETY_SENSOR_OFFLINE), None)
+        self.assertIsNotNone(off_event)
+
+        # 2. Sensor comes back online (off)
+        online_state = MagicMock()
+        online_state.state = "off"
+        online_state.attributes = {}
+
+        event_online = MagicMock()
+        event_online.data = {
+            "entity_id": "binary_sensor.hallway_smoke",
+            "new_state": online_state,
+        }
+        await self.coordinator._async_on_sensor_state_change(event_online)
+        await asyncio.sleep(0.01)
+
+        self.assertNotIn("binary_sensor.hallway_smoke", self.coordinator.offline_sensors)
+        bus_calls = self.hass.bus.async_fire.call_args_list
+        on_event = next((c for c in bus_calls if c[0][0] == EVENT_SAFETY_SENSOR_ONLINE), None)
+        self.assertIsNotNone(on_event)
 
 
 if __name__ == "__main__":

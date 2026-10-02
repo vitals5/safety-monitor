@@ -32,6 +32,9 @@ from .const import (
     EVENT_SAFETY_ALARM_RESET,
     EVENT_SAFETY_ALARM_SILENCED,
     EVENT_SAFETY_ALARM_TRIGGERED,
+    EVENT_SAFETY_BATTERY_LOW,
+    EVENT_SAFETY_SENSOR_OFFLINE,
+    EVENT_SAFETY_SENSOR_ONLINE,
     EVENT_SAFETY_SENSOR_TRIGGERED,
     EVENT_SAFETY_STATE_CHANGED,
     EVENT_SAFETY_TEST_MODE_CHANGED,
@@ -40,6 +43,7 @@ from .const import (
     PHASE_CUTOFF,
     PHASE_NOTIFICATION,
     PHASE_RESTORE,
+    PHASE_SYSTEM,
     SIGNAL_SAFETY_MONITOR_STATE_CHANGED,
     SIGNAL_SAFETY_MONITOR_UPDATED,
     STATE_NORMAL,
@@ -84,6 +88,7 @@ class SafetyCoordinator:
         self._ignored_sensors: set[str] = set()
         self._sensor_batteries: dict[str, dict[str, Any]] = {}
         self._low_battery_sensors: dict[str, dict[str, Any]] = {}
+        self._notified_low_batteries: set[str] = set()
 
     @property
     def state(self) -> str:
@@ -163,10 +168,15 @@ class SafetyCoordinator:
         battery_eid = sensor_cfg.get("battery_entity")
         battery_level: float | None = None
 
+        # If sensor entity itself is unavailable or unknown, skip battery check
+        main_st = self.hass.states.get(entity_id)
+        if main_st and main_st.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+            return
+
         # 1. Configured battery entity
         if battery_eid:
             st = self.hass.states.get(battery_eid)
-            if st and st.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+            if st and st.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN) and isinstance(st.state, (int, float, str)):
                 try:
                     battery_level = float(st.state)
                 except (ValueError, TypeError):
@@ -175,10 +185,10 @@ class SafetyCoordinator:
         # 2. Check attributes of sensor entity itself
         if battery_level is None:
             st = self.hass.states.get(entity_id)
-            if st:
+            if st and st.attributes:
                 for attr in ("battery_level", "battery", "battery_state"):
                     val = st.attributes.get(attr)
-                    if val is not None:
+                    if val is not None and isinstance(val, (int, float, str)):
                         try:
                             battery_level = float(val)
                             battery_eid = f"{entity_id} ({attr})"
@@ -196,7 +206,7 @@ class SafetyCoordinator:
                     if (s_dev_class == "battery" or s_eid.endswith("_battery") or s_eid.endswith("_batterie")) and (
                         base_name in s_eid
                     ):
-                        if s.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+                        if s.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN) and isinstance(s.state, (int, float, str)):
                             try:
                                 battery_level = float(s.state)
                                 battery_eid = s_eid
@@ -222,11 +232,28 @@ class SafetyCoordinator:
                     "name": sensor_cfg.get("name", entity_id),
                     "battery_entity": battery_eid or entity_id,
                 }
+                if (
+                    entity_id not in self._notified_low_batteries
+                    and settings.get("heartbeat_alert_battery", True)
+                ):
+                    self._notified_low_batteries.add(entity_id)
+                    self.hass.async_create_task(
+                        self._async_notify_system_alert(
+                            event_type="battery_low",
+                            entity_id=entity_id,
+                            sensor_cfg=sensor_cfg,
+                            battery_level=round(battery_level, 1),
+                            threshold=threshold,
+                            battery_eid=battery_eid,
+                        )
+                    )
             else:
                 self._low_battery_sensors.pop(entity_id, None)
+                self._notified_low_batteries.discard(entity_id)
         else:
             self._sensor_batteries.pop(entity_id, None)
             self._low_battery_sensors.pop(entity_id, None)
+            self._notified_low_batteries.discard(entity_id)
 
     def _async_check_all_batteries(self) -> None:
         """Scan battery levels for all monitored sensors."""
@@ -284,11 +311,35 @@ class SafetyCoordinator:
             if entity_id not in self._offline_sensors:
                 self._offline_sensors.add(entity_id)
                 _LOGGER.warning("Monitored safety sensor became offline: %s", entity_id)
+                settings = self.store.async_get_settings()
+                if settings.get("heartbeat_alert_offline", True):
+                    self.hass.async_create_task(
+                        self._async_notify_system_alert(
+                            event_type="sensor_offline",
+                            entity_id=entity_id,
+                            sensor_cfg=sensor_cfg,
+                        )
+                    )
                 self._async_notify_update()
             return
         elif entity_id in self._offline_sensors:
             self._offline_sensors.discard(entity_id)
             _LOGGER.info("Monitored safety sensor came back online: %s", entity_id)
+            sensor_name = sensor_cfg.get("name", entity_id)
+            self.hass.bus.async_fire(
+                EVENT_SAFETY_SENSOR_ONLINE,
+                {"entity_id": entity_id, "name": sensor_name},
+            )
+            self.hass.async_create_task(
+                self.store.async_add_history(
+                    {
+                        "event": "sensor_online",
+                        "entity_id": entity_id,
+                        "name": sensor_name,
+                        "details": f"Melder {sensor_name} ist wieder online",
+                    }
+                )
+            )
             self._async_notify_update()
 
         # Check hazard state transitions
@@ -915,6 +966,84 @@ class SafetyCoordinator:
 
         self._async_notify_update()
         return True
+
+    async def _async_notify_system_alert(
+        self,
+        event_type: str,
+        entity_id: str,
+        sensor_cfg: dict[str, Any],
+        battery_level: float | None = None,
+        threshold: float | None = None,
+        battery_eid: str | None = None,
+    ) -> None:
+        """Dispatch system notification / action for maintenance events (battery or offline)."""
+        sensor_name = sensor_cfg.get("name", entity_id)
+        zone_id = sensor_cfg.get("zone", "general")
+        zone_cfg = self.store.async_get_zone(zone_id) or {}
+        zone_name = zone_cfg.get("name", zone_id)
+
+        now = dt_util.now() if dt_util else datetime.now()
+        formatted_timestamp = now.strftime("%d.%m.%Y %H:%M:%S")
+        formatted_time = now.strftime("%H:%M:%S")
+        formatted_date = now.strftime("%d.%m.%Y")
+
+        if event_type == "battery_low":
+            display_hazard = "Batteriewarnung"
+            smart_hazard = SmartHazardType(display_hazard, "battery_low")
+            title = f"🪫 Schwache Batterie: {sensor_name}"
+            msg = (
+                f"Der Sicherheitsmelder '{sensor_name}' in Zone '{zone_name}' "
+                f"meldet einen schwachen Batteriestand von {battery_level}%!"
+            )
+            event_name = EVENT_SAFETY_BATTERY_LOW
+            history_event = "battery_low"
+            history_details = f"Schwache Batterie ({battery_level}%) bei {sensor_name}"
+        else:  # "sensor_offline"
+            display_hazard = "Offline-Warnung"
+            smart_hazard = SmartHazardType(display_hazard, "sensor_offline")
+            title = f"⚠️ Melder offline: {sensor_name}"
+            msg = (
+                f"Der Sicherheitsmelder '{sensor_name}' in Zone '{zone_name}' "
+                "ist offline / nicht erreichbar!"
+            )
+            event_name = EVENT_SAFETY_SENSOR_OFFLINE
+            history_event = "sensor_offline"
+            history_details = f"Melder {sensor_name} ist offline / nicht erreichbar"
+
+        context = {
+            "sensor_name": sensor_name,
+            "entity_id": entity_id,
+            "zone": zone_name,
+            "zone_id": zone_id,
+            "hazard_type": smart_hazard,
+            "event": event_type,
+            "event_type": event_type,
+            "battery_level": battery_level,
+            "threshold": threshold,
+            "battery_entity": battery_eid or entity_id,
+            "title": title,
+            "message": msg,
+            "timestamp": formatted_timestamp,
+            "time": formatted_time,
+            "date": formatted_date,
+            "state": event_type,
+        }
+
+        # 1. Fire Home Assistant bus event
+        self.hass.bus.async_fire(event_name, context)
+
+        # 2. Add history record
+        await self.store.async_add_history(
+            {
+                "event": history_event,
+                "entity_id": entity_id,
+                "name": sensor_name,
+                "details": history_details,
+            }
+        )
+
+        # 3. Execute configured Phase 5 (PHASE_SYSTEM) actions
+        await self.actions.async_execute_phase(PHASE_SYSTEM, context, sensor_cfg)
 
     def _set_state(self, new_state: str) -> None:
         """Update internal state and fire state changed event."""

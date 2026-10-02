@@ -67,6 +67,9 @@
       phaseAcousticDesc: "Auslösen lauter Sirenen, rotes Notfall-Licht und TTS-Sprachausgabe.",
       phaseRestore: "Stufe 4: Entwarnung & Rücksetzen (Nach Alarm)",
       phaseRestoreDesc: "Wird nach Alarm-Rücksetzen ausgeführt: Rücksetzen normaler Beleuchtung, Lüftung wieder aktivieren oder 'Alles Sicher'-Entwarnungs-Push senden.",
+      phaseSystem: "Stufe 5: Wartung & Systemwarnungen (Batterie & Offline)",
+      phaseSystemDesc: "Wird bei schwachem Batteriestand (< 15%) oder nicht erreichbaren (offline) Meldern ausgeführt (z. B. Push-Meldung).",
+      presetSystem: "🛠️ Systemmeldung",
       testAction: "Testen",
       edit: "Bearbeiten",
       delete: "Löschen",
@@ -189,6 +192,9 @@
       phaseAcousticDesc: "Trigger loud sirens, flashing emergency red lighting, and TTS announcements.",
       phaseRestore: "Phase 4: All-Clear & Restore (Post-Alarm)",
       phaseRestoreDesc: "Executed upon alarm reset: Restoring normal lighting, restarting ventilation, or sending an all-clear notification.",
+      phaseSystem: "Phase 5: Maintenance & System Alerts (Battery & Offline)",
+      phaseSystemDesc: "Triggered on low battery (< 15%) or when a detector goes offline (e.g. maintenance push notification).",
+      presetSystem: "🛠️ System Alert",
       testAction: "Test",
       edit: "Edit",
       delete: "Delete",
@@ -367,6 +373,10 @@
       variables: {
         text: "Achtung: {{ hazard_type }} erkannt durch {{ sensor_name }} in Zone {{ zone }}!"
       }
+    }, null, 2),
+    system_warning: JSON.stringify({
+      title: "⚠️ Systemmeldung: {{ sensor_name }}",
+      message: "{{ message }}"
     }, null, 2)
   };
 
@@ -2408,6 +2418,7 @@
       const notifActions = actions.filter(a => a.phase === 'notification');
       const acousticActions = actions.filter(a => a.phase === 'acoustic_optical');
       const restoreActions = actions.filter(a => a.phase === 'restore');
+      const systemActions = actions.filter(a => a.phase === 'system');
 
       const renderActionList = (list) => {
         if (list.length === 0) return '<p style="color: var(--secondary-text-color, #757575); font-size: 13px;">Keine Aktionen in dieser Phase konfiguriert.</p>';
@@ -2481,6 +2492,15 @@
             </div>
             <p class="phase-desc">${this._t("phaseRestoreDesc")}</p>
             ${renderActionList(restoreActions)}
+          </div>
+
+          <div class="phase-card">
+            <div class="phase-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+              <h4 class="phase-name">🛠️ ${this._t("phaseSystem")}</h4>
+              <button class="btn-sm btn-open-add-phase-action" data-phase="system">+ ${this._t("btnAddAction")}</button>
+            </div>
+            <p class="phase-desc">${this._t("phaseSystemDesc")}</p>
+            ${renderActionList(systemActions)}
           </div>
         </div>
       `;
@@ -2783,9 +2803,10 @@
                   <option value="notification" ${a.phase === 'notification' ? 'selected' : ''}>📱 Stufe 2: Benachrichtigung</option>
                   <option value="acoustic_optical" ${a.phase === 'acoustic_optical' ? 'selected' : ''}>🚨 Stufe 3: Akustisch & Optisch</option>
                   <option value="restore" ${a.phase === 'restore' ? 'selected' : ''}>🔄 ${this._t("phaseRestore")}</option>
+                  <option value="system" ${a.phase === 'system' ? 'selected' : ''}>🛠️ ${this._t("phaseSystem")}</option>
                 </select>
                 <small style="color: var(--secondary-text-color, #757575); font-size: 11px; display: block; margin-top: 4px;">
-                  Stufe 1: Notfall-Aktoren (z. B. Ventile zu). Stufe 2: Push-Meldungen. Stufe 3: Sirenen/Licht. Stufe 4: Nach Alarm (Entwarnung / Rücksetzen).
+                  Stufe 1: Notfall-Aktoren. Stufe 2: Push-Meldungen. Stufe 3: Sirenen/Licht. Stufe 4: Nach Alarm (Entwarnung). Stufe 5: Systemmeldungen (Batterie & Offline).
                 </small>
               </div>
 
@@ -2922,6 +2943,7 @@
                     <button type="button" class="btn-data-preset data-preset-btn" data-preset="siren">${this._t("presetSiren")}</button>
                     <button type="button" class="btn-data-preset data-preset-btn" data-preset="all_clear">${this._t("presetAllClear")}</button>
                     <button type="button" class="btn-data-preset data-preset-btn" data-preset="script">${this._t("presetScript")}</button>
+                    <button type="button" class="btn-data-preset data-preset-btn" data-preset="system_warning">${this._t("presetSystem")}</button>
                   </div>
                 </div>
 
@@ -2934,10 +2956,13 @@
                     <span class="btn-data-var data-var-chip" data-var="{{ sensor_name }}" title="Name des auslösenden Sensors">+ {{ sensor_name }}</span>
                     <span class="btn-data-var data-var-chip" data-var="{{ zone }}" title="Gefahrenzone / Raum">+ {{ zone }}</span>
                     <span class="btn-data-var data-var-chip" data-var="{{ hazard_type }}" title="Gefahrentyp (z. B. Rauch, Wasserleckage)">+ {{ hazard_type }}</span>
+                    <span class="btn-data-var data-var-chip" data-var="{{ battery_level }}" title="Batteriestand in % (z. B. 12)">+ {{ battery_level }}</span>
+                    <span class="btn-data-var data-var-chip" data-var="{{ event }}" title="Ereignis (battery_low oder sensor_offline)">+ {{ event }}</span>
+                    <span class="btn-data-var data-var-chip" data-var="{{ message }}" title="Automatische Status-/Warnmeldung">+ {{ message }}</span>
                     <span class="btn-data-var data-var-chip" data-var="{{ timestamp }}" title="Auslöse-Zeitpunkt (Datum + Uhrzeit)">+ {{ timestamp }}</span>
                     <span class="btn-data-var data-var-chip" data-var="{{ time }}" title="Uhrzeit (z. B. 13:45:00)">+ {{ time }}</span>
                     <span class="btn-data-var data-var-chip" data-var="{{ entity_id }}" title="Entitäts-ID des Sensors">+ {{ entity_id }}</span>
-                    <span class="btn-data-var data-var-chip" data-var="{{ state }}" title="Status (triggered / normal)">+ {{ state }}</span>
+                    <span class="btn-data-var data-var-chip" data-var="{{ state }}" title="Status (triggered / normal / battery_low / offline)">+ {{ state }}</span>
                   </div>
                   <small style="color: var(--secondary-text-color, #757575); font-size: 11px; display: block; margin-top: 5px;">
                     💡 Beim Testen der Aktion werden Platzhalter automatisch durch realistische Beispieldaten passend zu den gewählten Gefahrentypen ersetzt!
@@ -3474,6 +3499,15 @@
           this._render();
         });
       }
+
+      root.querySelectorAll('.btn-open-add-phase-action').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const ph = e.currentTarget.dataset.phase || 'system';
+          this._editingAction = { phase: ph };
+          this._modalOpen = 'action';
+          this._render();
+        });
+      });
 
       root.querySelectorAll('.btn-edit-action').forEach(btn => {
         btn.addEventListener('click', (e) => {
