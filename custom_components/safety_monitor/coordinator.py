@@ -18,7 +18,12 @@ from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_call_later, async_track_state_change_event
 
-from .actions import ActionEngine
+from .actions import ActionEngine, SmartHazardType, HAZARD_DISPLAY_NAMES
+
+try:
+    from homeassistant.util import dt as dt_util
+except Exception:
+    dt_util = None
 from .const import (
     DEFAULT_BATTERY_LOW_THRESHOLD,
     DEFAULT_DOUBLE_KNOCK_TIMEOUT,
@@ -226,14 +231,22 @@ class SafetyCoordinator:
                 sensor_type,
             )
             # Send simulated test notification
+            zone_cfg = self.store.async_get_zone(zone_id) or {}
+            zone_name = zone_cfg.get("name", zone_id)
+            display_hazard = HAZARD_DISPLAY_NAMES.get(sensor_type, sensor_type)
+            smart_hazard = SmartHazardType(f"TEST: {display_hazard}", sensor_type)
+            now = dt_util.now() if dt_util else datetime.now()
             await self.actions.async_execute_phase(
                 PHASE_NOTIFICATION,
                 {
                     "sensor_name": trigger_data["name"],
                     "entity_id": entity_id,
-                    "zone": zone_id,
-                    "hazard_type": sensor_type,
-                    "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+                    "zone": zone_name,
+                    "zone_id": zone_id,
+                    "hazard_type": smart_hazard,
+                    "timestamp": now.strftime("%d.%m.%Y %H:%M:%S"),
+                    "time": now.strftime("%H:%M:%S"),
+                    "date": now.strftime("%d.%m.%Y"),
                     "state": STATE_TESTING,
                 },
                 sensor_cfg,
@@ -328,12 +341,24 @@ class SafetyCoordinator:
         self._set_state(STATE_TRIGGERED)
 
         trigger_data = self._active_triggers.get(entity_id, {})
+        raw_hazard = trigger_data.get("type", TYPE_GENERIC)
+        zone_id = trigger_data.get("zone", "general")
+        zone_cfg = self.store.async_get_zone(zone_id) or {}
+        zone_name = zone_cfg.get("name", zone_id)
+
+        display_hazard = HAZARD_DISPLAY_NAMES.get(raw_hazard, raw_hazard)
+        smart_hazard = SmartHazardType(display_hazard, raw_hazard)
+        now = dt_util.now() if dt_util else datetime.now()
+
         context = {
             "sensor_name": trigger_data.get("name", entity_id),
             "entity_id": entity_id,
-            "zone": trigger_data.get("zone", "general"),
-            "hazard_type": trigger_data.get("type", TYPE_GENERIC),
-            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+            "zone": zone_name,
+            "zone_id": zone_id,
+            "hazard_type": smart_hazard,
+            "timestamp": now.strftime("%d.%m.%Y %H:%M:%S"),
+            "time": now.strftime("%H:%M:%S"),
+            "date": now.strftime("%d.%m.%Y"),
             "state": STATE_TRIGGERED,
         }
 
@@ -519,12 +544,16 @@ class SafetyCoordinator:
         await self.actions.async_execute_silence()
 
         # Phase 4: Restore / Nach-Alarm actions (e.g. lights off, push all clear)
+        now = dt_util.now() if dt_util else datetime.now()
         context = {
             "sensor_name": "Safety Monitor",
             "entity_id": "safety_monitor",
-            "zone": "all",
-            "hazard_type": "all_clear",
-            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+            "zone": "Alle Zonen",
+            "zone_id": "all",
+            "hazard_type": SmartHazardType("Entwarnung", "all_clear"),
+            "timestamp": now.strftime("%d.%m.%Y %H:%M:%S"),
+            "time": now.strftime("%H:%M:%S"),
+            "date": now.strftime("%d.%m.%Y"),
             "state": STATE_NORMAL,
         }
         await self.actions.async_execute_phase(PHASE_RESTORE, context)

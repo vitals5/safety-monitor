@@ -292,7 +292,9 @@ async def ws_delete_action(
 @websocket_api.websocket_command(
     {
         vol.Required("type"): "safety_monitor/action/test",
-        vol.Required("action_id"): cv.string,
+        vol.Optional("action_id"): cv.string,
+        vol.Optional("action"): dict,
+        vol.Optional("context"): dict,
     }
 )
 @websocket_api.async_response
@@ -301,14 +303,33 @@ async def ws_test_action(
     connection: websocket_api.ActiveConnection,
     msg: dict[str, Any],
 ) -> None:
-    """Test fire a configured action."""
+    """Test fire a configured action or unsaved draft action."""
     store, coordinator = _get_integration_instances(hass)
     if not store or not coordinator:
         connection.send_error(msg["id"], "not_found", "Safety Monitor not initialized")
         return
 
+    action_id = msg.get("action_id")
+    action_dict = msg.get("action")
+    context = msg.get("context")
+
+    if not action_id and not action_dict:
+        connection.send_error(
+            msg["id"],
+            "invalid_format",
+            "Either action_id or action dictionary must be provided",
+        )
+        return
+
     try:
-        success = await coordinator.actions.async_test_action(msg["action_id"])
+        if action_dict:
+            success = await coordinator.actions.async_test_action_dict(
+                action_dict, context=context
+            )
+        else:
+            success = await coordinator.actions.async_test_action(
+                action_id, context=context
+            )
         connection.send_result(msg["id"], {"success": bool(success)})
     except Exception as err:
         connection.send_result(msg["id"], {"success": False, "error": str(err)})

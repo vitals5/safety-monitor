@@ -196,7 +196,121 @@ class TestActionEngine(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(restore_call)
         self.assertEqual(restore_call[1].get("target"), {"entity_id": "light.emergency"})
 
+    async def test_smart_hazard_type_behavior(self) -> None:
+        """Test SmartHazardType equality and formatting."""
+        from custom_components.safety_monitor.actions import SmartHazardType
+        h = SmartHazardType("Wasserleckage", "moisture")
+        self.assertEqual(str(h), "Wasserleckage")
+        self.assertEqual(h, "Wasserleckage")
+        self.assertEqual(h, "moisture")
+        self.assertEqual(h, "MOISTURE")
+        self.assertEqual(h.upper(), "WASSERLECKAGE")
+
+    async def test_manual_test_action_renders_realistic_moisture_sample(self) -> None:
+        """Test testing an action uses realistic localized moisture sample data."""
+        await self.storage.async_save_action({
+            "id": "water_test_act",
+            "name": "Wasser Benachrichtigung",
+            "phase": PHASE_NOTIFICATION,
+            "service": "notify.mobile_app",
+            "target": {},
+            "data": {
+                "message": "Alarm: {{ hazard_type }} in {{ zone }} durch {{ sensor_name }}!",
+            },
+            "enabled": True,
+            "trigger_types": [TYPE_MOISTURE],
+        })
+
+        res = await self.engine.async_test_action("water_test_act")
+        self.assertTrue(res)
+
+        calls = self.hass.services.async_call.call_args_list
+        notify_call = next((c for c in reversed(calls) if c[0][0] == "notify"), None)
+        self.assertIsNotNone(notify_call)
+        msg = notify_call[0][2]["message"]
+        self.assertIn("Wasserleckage", msg)
+        self.assertIn("Waschküche", msg)
+
+    async def test_manual_test_action_uses_configured_sensors_and_zones(self) -> None:
+        """Test test context prioritizes real configured sensors and zones from storage."""
+        await self.storage.async_save_zone({
+            "id": "zone_attic",
+            "name": "Dachboden Studio",
+        })
+        await self.storage.async_save_sensor({
+            "entity_id": "binary_sensor.attic_smoke",
+            "name": "Dachboden Rauchmelder",
+            "type": TYPE_SMOKE,
+            "zone": "zone_attic",
+        })
+        await self.storage.async_save_action({
+            "id": "smoke_attic_act",
+            "name": "Rauch Benachrichtigung",
+            "phase": PHASE_NOTIFICATION,
+            "service": "notify.mobile_app",
+            "target": {},
+            "data": {
+                "message": "{{ sensor_name }} in {{ zone }}: {{ hazard_type }}",
+            },
+            "enabled": True,
+            "trigger_types": [TYPE_SMOKE],
+        })
+
+        res = await self.engine.async_test_action("smoke_attic_act")
+        self.assertTrue(res)
+
+        calls = self.hass.services.async_call.call_args_list
+        notify_call = next((c for c in reversed(calls) if c[0][0] == "notify"), None)
+        self.assertIsNotNone(notify_call)
+        msg = notify_call[0][2]["message"]
+        self.assertEqual(msg, "Dachboden Rauchmelder in Dachboden Studio: Rauch")
+
+    async def test_manual_test_action_dict_unsaved(self) -> None:
+        """Test testing an unsaved action dict directly via async_test_action_dict."""
+        action_dict = {
+            "name": "Unsaved Draft Action",
+            "phase": PHASE_NOTIFICATION,
+            "service": "notify.mobile_app",
+            "target": {},
+            "data": {
+                "message": "Test Draft: {{ hazard_type }} (Status: {{ state }})",
+            },
+            "trigger_types": [TYPE_MOISTURE],
+        }
+        res = await self.engine.async_test_action_dict(action_dict)
+        self.assertTrue(res)
+
+        calls = self.hass.services.async_call.call_args_list
+        notify_call = next((c for c in reversed(calls) if c[0][0] == "notify"), None)
+        self.assertIsNotNone(notify_call)
+        msg = notify_call[0][2]["message"]
+        self.assertIn("Wasserleckage", msg)
+        self.assertIn("triggered", msg)
+
+    async def test_manual_test_action_restore_phase(self) -> None:
+        """Test test context for restore phase generates Entwarnung and normal state."""
+        action_dict = {
+            "name": "Restore Push",
+            "phase": PHASE_RESTORE,
+            "service": "notify.mobile_app",
+            "target": {},
+            "data": {
+                "message": "{{ hazard_type }} gemeldet. Status ist {{ state }}.",
+            },
+            "trigger_types": [],
+        }
+        res = await self.engine.async_test_action_dict(action_dict)
+        self.assertTrue(res)
+
+        calls = self.hass.services.async_call.call_args_list
+        notify_call = next((c for c in reversed(calls) if c[0][0] == "notify"), None)
+        self.assertIsNotNone(notify_call)
+        msg = notify_call[0][2]["message"]
+        self.assertIn("Entwarnung", msg)
+        self.assertIn("normal", msg)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

@@ -15,10 +15,84 @@ from .const import (
     PHASE_CUTOFF,
     PHASE_NOTIFICATION,
     PHASE_RESTORE,
+    TYPE_CO,
+    TYPE_GAS,
+    TYPE_GENERIC,
+    TYPE_HEAT,
+    TYPE_MOISTURE,
+    TYPE_SMOKE,
 )
 from .store import SafetyStorage
 
+try:
+    from homeassistant.util import dt as dt_util
+except Exception:
+    dt_util = None
+
 _LOGGER = logging.getLogger(__name__)
+
+HAZARD_DISPLAY_NAMES: dict[str, str] = {
+    TYPE_SMOKE: "Rauch",
+    TYPE_MOISTURE: "Wasserleckage",
+    TYPE_GAS: "Gasleckage",
+    TYPE_CO: "Kohlenmonoxid (CO)",
+    TYPE_HEAT: "Hitzealarm",
+    TYPE_GENERIC: "Gefahrenalarm",
+    "restore": "Entwarnung",
+    "all_clear": "Entwarnung",
+}
+
+HAZARD_SAMPLE_DATA: dict[str, dict[str, str]] = {
+    TYPE_SMOKE: {
+        "sensor_name": "Rauchmelder Wohnzimmer",
+        "entity_id": "binary_sensor.rauchmelder_wohnzimmer",
+        "zone": "Wohnzimmer",
+    },
+    TYPE_MOISTURE: {
+        "sensor_name": "Wassersensor Waschküche",
+        "entity_id": "binary_sensor.wassersensor_waschkueche",
+        "zone": "Waschküche",
+    },
+    TYPE_GAS: {
+        "sensor_name": "Gassensor Heizungskeller",
+        "entity_id": "binary_sensor.gassensor_heizungskeller",
+        "zone": "Heizungsraum",
+    },
+    TYPE_CO: {
+        "sensor_name": "CO-Melder Kaminzimmer",
+        "entity_id": "binary_sensor.co_melder_kaminzimmer",
+        "zone": "Kaminzimmer",
+    },
+    TYPE_HEAT: {
+        "sensor_name": "Hitzemelder Küche",
+        "entity_id": "binary_sensor.hitzemelder_kueche",
+        "zone": "Küche",
+    },
+    TYPE_GENERIC: {
+        "sensor_name": "Gefahrensensor Flur",
+        "entity_id": "binary_sensor.gefahrensensor_flur",
+        "zone": "Flur",
+    },
+}
+
+
+class SmartHazardType(str):
+    """String representing hazard type, comparing equal to both localized and raw code."""
+
+    def __new__(cls, display_name: str, raw_code: str):
+        obj = super().__new__(cls, display_name)
+        obj.raw_code = raw_code
+        return obj
+
+    def __eq__(self, other: Any) -> bool:
+        if super().__eq__(other):
+            return True
+        if isinstance(other, str) and other.lower() == getattr(self, "raw_code", "").lower():
+            return True
+        return False
+
+    def __hash__(self) -> int:
+        return super().__hash__()
 
 
 def _render_value(val: Any, hass: HomeAssistant, context: dict[str, Any]) -> Any:
@@ -34,6 +108,8 @@ def _render_value(val: Any, hass: HomeAssistant, context: dict[str, Any]) -> Any
                 res = val
                 for k, v in context.items():
                     res = res.replace("{{" + f" {k} " + "}}", str(v)).replace("{{" + str(k) + "}}", str(v))
+                    res = res.replace("{{" + f" {k} | upper " + "}}", str(v).upper()).replace("{{" + f"{k} | upper" + "}}", str(v).upper())
+                    res = res.replace("{{" + f" {k} | lower " + "}}", str(v).lower()).replace("{{" + f"{k} | lower" + "}}", str(v).lower())
                 return res
         return val
     elif isinstance(val, dict):
@@ -246,6 +322,100 @@ class ActionEngine:
                 except Exception as err:
                     _LOGGER.debug("Could not turn off light %s: %s", entity_id, err)
 
+    def _build_test_context(self, action: dict[str, Any]) -> dict[str, Any]:
+        """Build realistic localized example context data for action testing."""
+        phase = action.get("phase", "")
+        trigger_types = action.get("trigger_types", [])
+
+        is_restore = phase in (PHASE_RESTORE, "restore", "all_clear")
+
+        if is_restore:
+            target_hazard = "restore"
+            display_name = "Entwarnung"
+            state = "normal"
+        else:
+            state = "triggered"
+            if trigger_types and isinstance(trigger_types, list) and len(trigger_types) > 0:
+                target_hazard = trigger_types[0]
+            else:
+                target_hazard = TYPE_SMOKE
+            display_name = HAZARD_DISPLAY_NAMES.get(target_hazard, target_hazard.capitalize())
+
+        smart_hazard = SmartHazardType(display_name, target_hazard)
+
+        # Try to find a matching configured sensor from storage
+        sensor_name = None
+        entity_id = None
+        zone_name = None
+
+        if hasattr(self, "store") and self.store:
+            raw_sensors = self.store.async_get_sensors()
+            configured_sensors: list[dict[str, Any]] = (
+                list(raw_sensors.values())
+                if isinstance(raw_sensors, dict)
+                else list(raw_sensors or [])
+            )
+
+            raw_zones = self.store.async_get_zones()
+            if isinstance(raw_zones, dict):
+                configured_zones = {
+                    zid: (z.get("name") if isinstance(z, dict) else zid)
+                    for zid, z in raw_zones.items()
+                }
+            elif isinstance(raw_zones, list):
+                configured_zones = {
+                    z.get("id"): z.get("name", z.get("id"))
+                    for z in raw_zones
+                    if isinstance(z, dict)
+                }
+            else:
+                configured_zones = {}
+
+            # Find matching sensor if possible
+            matched_sensor = None
+            if not is_restore:
+                for s in configured_sensors:
+                    if isinstance(s, dict) and s.get("type") == target_hazard:
+                        matched_sensor = s
+                        break
+            if not matched_sensor and configured_sensors:
+                # If no direct type match or if restore phase, use first configured sensor
+                matched_sensor = configured_sensors[0]
+
+            if matched_sensor and isinstance(matched_sensor, dict):
+                entity_id = matched_sensor.get("entity_id")
+                sensor_name = matched_sensor.get("name") or entity_id
+                zone_id = matched_sensor.get("zone")
+                if zone_id:
+                    zone_name = configured_zones.get(zone_id, zone_id)
+
+        # If not matched from real storage sensors, use realistic hazard sample
+        if not sensor_name or not entity_id or not zone_name:
+            fallback = HAZARD_SAMPLE_DATA.get(target_hazard, HAZARD_SAMPLE_DATA.get(TYPE_SMOKE, {}))
+            sensor_name = sensor_name or fallback.get("sensor_name", "Test-Sensor (Simulation)")
+            entity_id = entity_id or fallback.get("entity_id", "binary_sensor.test_sensor")
+            zone_name = zone_name or fallback.get("zone", "Wohnbereich")
+
+        if dt_util:
+            now = dt_util.now()
+        else:
+            now = datetime.now()
+
+        formatted_timestamp = now.strftime("%d.%m.%Y %H:%M:%S")
+        formatted_time = now.strftime("%H:%M:%S")
+        formatted_date = now.strftime("%d.%m.%Y")
+
+        return {
+            "sensor_name": sensor_name,
+            "entity_id": entity_id,
+            "zone": zone_name,
+            "hazard_type": smart_hazard,
+            "timestamp": formatted_timestamp,
+            "time": formatted_time,
+            "date": formatted_date,
+            "state": state,
+        }
+
     async def async_test_action(
         self, action_id: str, context: dict[str, Any] | None = None
     ) -> bool:
@@ -254,12 +424,13 @@ class ActionEngine:
         if not action:
             raise HomeAssistantError(f"Action '{action_id}' not found")
 
-        ctx = context or {
-            "sensor_name": "Test-Sensor (Manuell)",
-            "entity_id": "binary_sensor.test_sensor",
-            "zone": "Test-Zone",
-            "hazard_type": "smoke",
-            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
-            "state": "triggered",
-        }
+        ctx = context or self._build_test_context(action)
         return await self._async_call_action(action, ctx, blocking=True)
+
+    async def async_test_action_dict(
+        self, action: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> bool:
+        """Manually trigger an unsaved action dict for testing."""
+        ctx = context or self._build_test_context(action)
+        return await self._async_call_action(action, ctx, blocking=True)
+

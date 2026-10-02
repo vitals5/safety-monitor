@@ -1280,6 +1280,27 @@
             color: #f44336 !important;
             border-color: #f44336 !important;
           }
+          .btn.action-modal-test {
+            background-color: rgba(255, 152, 0, 0.12);
+            color: #f57c00 !important;
+            border: 1px solid rgba(255, 152, 0, 0.35);
+            font-weight: 600;
+            transition: all 0.2s ease;
+          }
+          .btn.action-modal-test:hover {
+            background-color: rgba(255, 152, 0, 0.22);
+            border-color: #f57c00;
+          }
+          .btn.action-modal-test.test-success {
+            background-color: rgba(76, 175, 80, 0.18) !important;
+            color: #2e7d32 !important;
+            border-color: #4caf50 !important;
+          }
+          .btn.action-modal-test.test-error {
+            background-color: rgba(244, 67, 54, 0.18) !important;
+            color: #d32f2f !important;
+            border-color: #f44336 !important;
+          }
           .btn-sm.danger {
             background-color: rgba(211, 47, 47, 0.12);
             color: var(--error-color, #d32f2f) !important;
@@ -2529,9 +2550,15 @@
                   <div style="display: flex; flex-wrap: wrap; gap: 6px;">
                     <span class="btn-data-var data-var-chip" data-var="{{ sensor_name }}" title="Name des auslösenden Sensors">+ {{ sensor_name }}</span>
                     <span class="btn-data-var data-var-chip" data-var="{{ zone }}" title="Gefahrenzone / Raum">+ {{ zone }}</span>
-                    <span class="btn-data-var data-var-chip" data-var="{{ hazard_type }}" title="Gefahrentyp (smoke, moisture, etc.)">+ {{ hazard_type }}</span>
-                    <span class="btn-data-var data-var-chip" data-var="{{ timestamp }}" title="Auslöse-Zeitpunkt">+ {{ timestamp }}</span>
+                    <span class="btn-data-var data-var-chip" data-var="{{ hazard_type }}" title="Gefahrentyp (z. B. Rauch, Wasserleckage)">+ {{ hazard_type }}</span>
+                    <span class="btn-data-var data-var-chip" data-var="{{ timestamp }}" title="Auslöse-Zeitpunkt (Datum + Uhrzeit)">+ {{ timestamp }}</span>
+                    <span class="btn-data-var data-var-chip" data-var="{{ time }}" title="Uhrzeit (z. B. 13:45:00)">+ {{ time }}</span>
+                    <span class="btn-data-var data-var-chip" data-var="{{ entity_id }}" title="Entitäts-ID des Sensors">+ {{ entity_id }}</span>
+                    <span class="btn-data-var data-var-chip" data-var="{{ state }}" title="Status (triggered / normal)">+ {{ state }}</span>
                   </div>
+                  <small style="color: var(--secondary-text-color, #757575); font-size: 11px; display: block; margin-top: 5px;">
+                    💡 Beim Testen der Aktion werden Platzhalter automatisch durch realistische Beispieldaten passend zu den gewählten Gefahrentypen ersetzt!
+                  </small>
                 </div>
 
                 <textarea
@@ -2544,9 +2571,16 @@
               </div>
 
               <!-- Modal Actions -->
-              <div class="modal-actions">
-                <button class="btn btn-secondary" id="btn-modal-cancel">${this._t("cancel")}</button>
-                <button class="btn btn-primary" id="btn-modal-save-action">${this._t("save")}</button>
+              <div class="modal-actions" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <div>
+                  <button type="button" class="btn action-modal-test" id="btn-modal-test-action" title="Dienst sofort mit Beispieldaten testen">
+                    ⚡ ${this._t("testAction")}
+                  </button>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                  <button class="btn btn-secondary" id="btn-modal-cancel">${this._t("cancel")}</button>
+                  <button class="btn btn-primary" id="btn-modal-save-action">${this._t("save")}</button>
+                </div>
               </div>
             </div>
           </div>
@@ -3313,6 +3347,77 @@
             await this._loadData();
           } catch (err) {
             alert("Fehler beim Speichern der Aktion: " + err.message);
+          }
+        });
+      }
+
+      const btnTestModalAction = root.querySelector('#btn-modal-test-action');
+      if (btnTestModalAction) {
+        btnTestModalAction.addEventListener('click', async () => {
+          const name = root.querySelector('#modal-act-name').value.trim() || "Aktion";
+          const phase = root.querySelector('#modal-act-phase').value;
+          const service = root.querySelector('#modal-act-service').value.trim();
+          const targetRaw = root.querySelector('#modal-act-target').value.trim();
+          const repeatInterval = parseInt(root.querySelector('#modal-act-repeat')?.value, 10) || 0;
+          let dataObj = {};
+          try {
+            dataObj = JSON.parse(root.querySelector('#modal-act-data').value || "{}");
+          } catch (err) {
+            alert("Ungültiges JSON in den Dienst-Daten: " + err.message);
+            return;
+          }
+
+          if (!service) {
+            alert("Dienst (Service) ist erforderlich!");
+            return;
+          }
+
+          const target = targetRaw ? { entity_id: targetRaw.split(',').map(s => s.trim()) } : {};
+          const selectedTypes = Array.from(root.querySelectorAll('.act-type-cb:checked')).map(cb => cb.value);
+          const triggerTypes = selectedTypes.length > 0 ? selectedTypes : ["smoke", "moisture", "gas", "carbon_monoxide", "heat"];
+
+          const origContent = btnTestModalAction.innerHTML;
+          btnTestModalAction.disabled = true;
+          btnTestModalAction.innerHTML = '⏳ Testen...';
+          btnTestModalAction.classList.remove('test-success', 'test-error');
+
+          try {
+            const res = await this._hass.callWS({
+              type: "safety_monitor/action/test",
+              action: {
+                id: (this._editingAction && this._editingAction.id) || undefined,
+                name: name,
+                phase: phase,
+                service: service,
+                target: target,
+                data: dataObj,
+                repeat_interval: repeatInterval,
+                enabled: true,
+                trigger_types: triggerTypes,
+              }
+            });
+            if (res && res.success === false) {
+              throw new Error(res.error || "Aktion fehlgeschlagen");
+            }
+            btnTestModalAction.innerHTML = '✅ Erfolgreich';
+            btnTestModalAction.classList.add('test-success');
+            setTimeout(() => {
+              btnTestModalAction.innerHTML = origContent;
+              btnTestModalAction.classList.remove('test-success');
+              btnTestModalAction.disabled = false;
+            }, 2500);
+          } catch (err) {
+            const rawMsg = err?.message || err?.error || "Fehler aufgetreten";
+            const shortMsg = rawMsg.length > 26 ? rawMsg.slice(0, 23) + '...' : rawMsg;
+            btnTestModalAction.innerHTML = `❌ ${shortMsg}`;
+            btnTestModalAction.title = rawMsg;
+            btnTestModalAction.classList.add('test-error');
+            setTimeout(() => {
+              btnTestModalAction.innerHTML = origContent;
+              btnTestModalAction.title = '';
+              btnTestModalAction.classList.remove('test-error');
+              btnTestModalAction.disabled = false;
+            }, 3500);
           }
         });
       }

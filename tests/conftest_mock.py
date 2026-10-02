@@ -253,6 +253,15 @@ sys.modules["homeassistant.data_entry_flow"] = data_entry_flow_mock
 sys.modules["homeassistant.exceptions"] = MagicMock()
 sys.modules["homeassistant.exceptions"].HomeAssistantError = Exception
 
+util_mock = MagicMock()
+util_mock.__path__ = []
+dt_mock = MagicMock()
+dt_mock.now = lambda: datetime.now()
+util_mock.dt = dt_mock
+sys.modules["homeassistant.util"] = util_mock
+sys.modules["homeassistant.util.dt"] = dt_mock
+ha_mock.util = util_mock
+
 # Add custom_components to path
 project_root = Path(__file__).parent.parent
 if str(project_root) not in sys.path:
