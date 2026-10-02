@@ -38,6 +38,8 @@ def async_register_websocket_api(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_list_candidate_sensors)
     websocket_api.async_register_command(hass, ws_save_sensor)
     websocket_api.async_register_command(hass, ws_delete_sensor)
+    websocket_api.async_register_command(hass, ws_trigger_sensor_button)
+    websocket_api.async_register_command(hass, ws_ignore_sensor)
     websocket_api.async_register_command(hass, ws_save_zone)
     websocket_api.async_register_command(hass, ws_delete_zone)
     websocket_api.async_register_command(hass, ws_save_action)
@@ -76,6 +78,9 @@ async def ws_get_config(
             "settings": store.async_get_settings(),
             "history": store.async_get_history(limit=50),
             "state": coordinator.state if coordinator else "normal",
+            "ignored_sensors": coordinator.ignored_sensors if coordinator else [],
+            "sensor_batteries": coordinator.sensor_batteries if coordinator else {},
+            "low_battery_sensors": coordinator.low_battery_sensors if coordinator else {},
         },
     )
 
@@ -118,11 +123,51 @@ async def ws_list_candidate_sensors(
     monitored = store.async_get_sensors() if store else {}
 
     candidates: list[dict[str, Any]] = []
+    all_states = hass.states.async_all()
     for state_obj in hass.states.async_all("binary_sensor"):
         dev_class = state_obj.attributes.get(ATTR_DEVICE_CLASS, "")
         is_hazard_class = dev_class in HAZARD_DEVICE_CLASSES or any(
             hz in state_obj.entity_id for hz in ["smoke", "rauch", "water", "wasser", "leak", "gas", "co_", "heat"]
         )
+
+        # Sibling entity search for buttons and battery
+        base_name = state_obj.entity_id.split(".")[-1]
+        suggested_silence = ""
+        suggested_drill = ""
+        suggested_test = ""
+        suggested_battery = ""
+        battery_level = None
+
+        # Check attributes of the sensor first
+        for attr in ("battery_level", "battery", "battery_state"):
+            val = state_obj.attributes.get(attr)
+            if val is not None:
+                try:
+                    battery_level = float(val)
+                    break
+                except (ValueError, TypeError):
+                    pass
+
+        for s in all_states:
+            s_eid = s.entity_id
+            if base_name in s_eid and s_eid != state_obj.entity_id:
+                s_lower = s_eid.lower()
+                domain = s_eid.split(".")[0]
+                if domain in ("button", "switch", "input_boolean"):
+                    if any(k in s_lower for k in ["silence", "stumm", "hush", "mute"]):
+                        suggested_silence = s_eid
+                    elif any(k in s_lower for k in ["drill", "alarm_test", "alarmuebung", "alarm_drill"]):
+                        suggested_drill = s_eid
+                    elif any(k in s_lower for k in ["self_test", "selbsttest", "test"]):
+                        suggested_test = s_eid
+                elif domain == "sensor":
+                    if s.attributes.get(ATTR_DEVICE_CLASS) == "battery" or s_lower.endswith("_battery") or s_lower.endswith("_batterie"):
+                        suggested_battery = s_eid
+                        if battery_level is None and s.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+                            try:
+                                battery_level = float(s.state)
+                            except (ValueError, TypeError):
+                                pass
 
         candidates.append({
             "entity_id": state_obj.entity_id,
@@ -131,6 +176,11 @@ async def ws_list_candidate_sensors(
             "state": state_obj.state,
             "is_hazard_class": is_hazard_class,
             "monitored": state_obj.entity_id in monitored,
+            "suggested_silence": suggested_silence,
+            "suggested_drill": suggested_drill,
+            "suggested_test": suggested_test,
+            "suggested_battery": suggested_battery,
+            "battery_level": battery_level,
         })
 
     # Sort hazard candidates to top
@@ -152,6 +202,10 @@ async def ws_list_candidate_sensors(
                 vol.Optional("auto_ack_on_clear"): cv.boolean,
                 vol.Optional("double_knock"): cv.boolean,
                 vol.Optional("linked_shutoff"): list,
+                vol.Optional("silence_entity"): vol.Any(cv.entity_id, None, ""),
+                vol.Optional("drill_entity"): vol.Any(cv.entity_id, None, ""),
+                vol.Optional("test_entity"): vol.Any(cv.entity_id, None, ""),
+                vol.Optional("battery_entity"): vol.Any(cv.entity_id, None, ""),
             }
         ),
     }
@@ -431,6 +485,56 @@ async def ws_trigger_alarm(
 
 @websocket_api.websocket_command(
     {
+        vol.Required("type"): "safety_monitor/sensor/trigger_button",
+        vol.Required("entity_id"): cv.entity_id,
+        vol.Required("button_type"): vol.In(["silence", "test", "drill"]),
+    }
+)
+@websocket_api.async_response
+async def ws_trigger_sensor_button(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Trigger a physical sensor button (silence, test, or drill)."""
+    _, coordinator = _get_integration_instances(hass)
+    if not coordinator:
+        connection.send_error(msg["id"], "not_found", "Safety Monitor not initialized")
+        return
+
+    success = await coordinator.async_trigger_sensor_button(
+        msg["entity_id"], msg["button_type"]
+    )
+    connection.send_result(msg["id"], {"success": success})
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "safety_monitor/sensor/ignore",
+        vol.Required("entity_id"): cv.entity_id,
+        vol.Optional("ignored", default=True): cv.boolean,
+    }
+)
+@websocket_api.async_response
+async def ws_ignore_sensor(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Temporarily ignore/mute a triggered sensor until it clears."""
+    _, coordinator = _get_integration_instances(hass)
+    if not coordinator:
+        connection.send_error(msg["id"], "not_found", "Safety Monitor not initialized")
+        return
+
+    success = await coordinator.async_set_sensor_ignored(
+        msg["entity_id"], msg.get("ignored", True)
+    )
+    connection.send_result(msg["id"], {"success": success})
+
+
+@websocket_api.websocket_command(
+    {
         vol.Required("type"): "safety_monitor/status",
     }
 )
@@ -453,6 +557,8 @@ async def ws_get_status(
             "active_triggers": coordinator.active_triggers,
             "last_trigger": coordinator.last_trigger,
             "offline_sensors": coordinator.offline_sensors,
+            "ignored_sensors": coordinator.ignored_sensors,
+            "sensor_batteries": coordinator.sensor_batteries,
             "low_battery_sensors": coordinator.low_battery_sensors,
         },
     )

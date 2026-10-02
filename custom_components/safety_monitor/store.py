@@ -225,6 +225,10 @@ class SafetyStorage:
             "auto_ack_on_clear": bool(sensor_data.get("auto_ack_on_clear", existing.get("auto_ack_on_clear", False))),
             "double_knock": bool(sensor_data.get("double_knock", existing.get("double_knock", False))),
             "linked_shutoff": list(sensor_data.get("linked_shutoff", existing.get("linked_shutoff", []))),
+            "silence_entity": (sensor_data.get("silence_entity", existing.get("silence_entity", "")) or "").strip(),
+            "drill_entity": (sensor_data.get("drill_entity", existing.get("drill_entity", "")) or "").strip(),
+            "test_entity": (sensor_data.get("test_entity", existing.get("test_entity", "")) or "").strip(),
+            "battery_entity": (sensor_data.get("battery_entity", existing.get("battery_entity", "")) or "").strip(),
         }
         self.data["sensors"][entity_id] = merged
         await self.async_save()

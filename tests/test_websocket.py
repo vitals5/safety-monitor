@@ -13,6 +13,7 @@ from custom_components.safety_monitor.websocket import (
     ws_delete_zone,
     ws_get_config,
     ws_get_status,
+    ws_ignore_sensor,
     ws_list_candidate_sensors,
     ws_reset_alarm,
     ws_save_action,
@@ -20,6 +21,7 @@ from custom_components.safety_monitor.websocket import (
     ws_save_zone,
     ws_set_test_mode,
     ws_silence_alarm,
+    ws_trigger_sensor_button,
     ws_update_settings,
 )
 
@@ -174,6 +176,36 @@ class TestWebSocketAPI(unittest.IsolatedAsyncioTestCase):
         self.connection.send_result.assert_called_once()
         res = self.connection.send_result.call_args[0][1]
         self.assertEqual(res["state"], STATE_NORMAL)
+
+    async def test_ws_trigger_sensor_button(self) -> None:
+        """Test triggering a sensor button via WS."""
+        self.coordinator.async_trigger_sensor_button = AsyncMock(return_value=True)
+        msg = {
+            "id": 12,
+            "type": "safety_monitor/sensor/trigger_button",
+            "entity_id": "binary_sensor.smoke_kitchen",
+            "button_type": "test",
+        }
+        await ws_trigger_sensor_button(self.hass, self.connection, msg)
+        self.coordinator.async_trigger_sensor_button.assert_called_once_with(
+            "binary_sensor.smoke_kitchen", "test"
+        )
+        self.connection.send_result.assert_called_once_with(12, {"success": True})
+
+    async def test_ws_ignore_sensor(self) -> None:
+        """Test ignoring a sensor via WS."""
+        self.coordinator.async_set_sensor_ignored = AsyncMock(return_value=True)
+        msg = {
+            "id": 13,
+            "type": "safety_monitor/sensor/ignore",
+            "entity_id": "binary_sensor.smoke_kitchen",
+            "ignored": True,
+        }
+        await ws_ignore_sensor(self.hass, self.connection, msg)
+        self.coordinator.async_set_sensor_ignored.assert_called_once_with(
+            "binary_sensor.smoke_kitchen", True
+        )
+        self.connection.send_result.assert_called_once_with(13, {"success": True})
 
 
 if __name__ == "__main__":

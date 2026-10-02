@@ -243,5 +243,137 @@ class TestSafetyCoordinator(unittest.IsolatedAsyncioTestCase):
         self.assertIn("manual.alarm", self.coordinator.active_triggers)
 
 
+    async def test_sensor_silence_button_triggered_on_silence(self) -> None:
+        """Test silencing alarm triggers sensor's silence_entity."""
+        self.hass.services.async_call = AsyncMock()
+        await self.storage.async_save_sensor({
+            "entity_id": "binary_sensor.smoke_hallway",
+            "name": "Hallway Smoke",
+            "zone": "hallway",
+            "type": TYPE_SMOKE,
+            "silence_entity": "button.smoke_hallway_silence",
+            "enabled": True,
+        })
+
+        st = MagicMock()
+        st.state = "on"
+        st.attributes = {"friendly_name": "Hallway Smoke"}
+        await self.coordinator._async_handle_sensor_trigger("binary_sensor.smoke_hallway", st)
+        self.assertEqual(self.coordinator.state, STATE_TRIGGERED)
+
+        # Now silence
+        await self.coordinator.async_silence(duration=600)
+        self.assertEqual(self.coordinator.state, STATE_SILENCED)
+
+        # Verify button.press was called for silence_entity
+        calls = self.hass.services.async_call.call_args_list
+        button_call = next(
+            (c for c in calls if c[0][0] == "button" and c[0][1] == "press" and c[1]["target"]["entity_id"] == ["button.smoke_hallway_silence"]),
+            None,
+        )
+        self.assertIsNotNone(button_call)
+
+    async def test_sensor_trigger_button_test_and_drill(self) -> None:
+        """Test triggering self-test and drill buttons via coordinator."""
+        self.hass.services.async_call = AsyncMock()
+        await self.storage.async_save_sensor({
+            "entity_id": "binary_sensor.smoke_bedroom",
+            "name": "Bedroom Smoke",
+            "zone": "bedroom",
+            "test_entity": "button.smoke_bedroom_self_test",
+            "drill_entity": "button.smoke_bedroom_drill",
+            "enabled": True,
+        })
+
+        # Trigger self-test
+        res_test = await self.coordinator.async_trigger_sensor_button("binary_sensor.smoke_bedroom", "test")
+        self.assertTrue(res_test)
+
+        # Trigger drill
+        res_drill = await self.coordinator.async_trigger_sensor_button("binary_sensor.smoke_bedroom", "drill")
+        self.assertTrue(res_drill)
+
+        calls = self.hass.services.async_call.call_args_list
+        called_targets = [c[1]["target"]["entity_id"][0] for c in calls if c[0][0] == "button" and c[0][1] == "press"]
+        self.assertIn("button.smoke_bedroom_self_test", called_targets)
+        self.assertIn("button.smoke_bedroom_drill", called_targets)
+
+    async def test_sensor_temporary_ignore_and_auto_clear(self) -> None:
+        """Test temporarily ignoring a sensor mutes alarm until sensor clears."""
+        await self.storage.async_save_sensor({
+            "entity_id": "binary_sensor.kitchen_smoke",
+            "name": "Kitchen Smoke Alarm",
+            "zone": "kitchen",
+            "type": TYPE_SMOKE,
+            "enabled": True,
+        })
+
+        st_on = MagicMock()
+        st_on.state = "on"
+        st_on.attributes = {"friendly_name": "Kitchen Smoke Alarm"}
+        await self.coordinator._async_handle_sensor_trigger("binary_sensor.kitchen_smoke", st_on)
+        self.assertEqual(self.coordinator.state, STATE_TRIGGERED)
+
+        # Ignore triggered sensor
+        await self.coordinator.async_set_sensor_ignored("binary_sensor.kitchen_smoke", True)
+        self.assertIn("binary_sensor.kitchen_smoke", self.coordinator.ignored_sensors)
+        self.assertTrue(self.coordinator.active_triggers["binary_sensor.kitchen_smoke"]["ignored"])
+        # Sirens silenced, state transitions to SILENCED
+        self.assertEqual(self.coordinator.state, STATE_SILENCED)
+
+        # Sensor returns to OFF (smoke cleared) -> should auto-remove from ignored_sensors
+        st_off = MagicMock()
+        st_off.state = "off"
+        await self.coordinator._async_handle_sensor_clear("binary_sensor.kitchen_smoke", st_off)
+        self.assertNotIn("binary_sensor.kitchen_smoke", self.coordinator.ignored_sensors)
+
+    async def test_sensor_battery_monitoring_and_threshold(self) -> None:
+        """Test battery monitoring from entity and attributes with low threshold flag."""
+        # Setup mock states in hass
+        bat_sensor_state = MagicMock()
+        bat_sensor_state.state = "12.0"
+        bat_sensor_state.attributes = {}
+
+        normal_sensor_state = MagicMock()
+        normal_sensor_state.state = "off"
+        normal_sensor_state.attributes = {"battery_level": 85.0}
+
+        def mock_get(eid):
+            if eid == "sensor.detector_battery":
+                return bat_sensor_state
+            if eid == "binary_sensor.normal_detector":
+                return normal_sensor_state
+            return None
+
+        self.hass.states.get = mock_get
+
+        await self.storage.async_save_sensor({
+            "entity_id": "binary_sensor.low_detector",
+            "name": "Low Battery Detector",
+            "battery_entity": "sensor.detector_battery",
+            "enabled": True,
+        })
+        await self.storage.async_save_sensor({
+            "entity_id": "binary_sensor.normal_detector",
+            "name": "Normal Battery Detector",
+            "enabled": True,
+        })
+
+        self.coordinator._async_check_all_batteries()
+
+        batteries = self.coordinator.sensor_batteries
+        low_batteries = self.coordinator.low_battery_sensors
+
+        self.assertIn("binary_sensor.low_detector", batteries)
+        self.assertEqual(batteries["binary_sensor.low_detector"]["level"], 12.0)
+        self.assertTrue(batteries["binary_sensor.low_detector"]["low"])
+        self.assertIn("binary_sensor.low_detector", low_batteries)
+
+        self.assertIn("binary_sensor.normal_detector", batteries)
+        self.assertEqual(batteries["binary_sensor.normal_detector"]["level"], 85.0)
+        self.assertFalse(batteries["binary_sensor.normal_detector"]["low"])
+        self.assertNotIn("binary_sensor.normal_detector", low_batteries)
+
+
 if __name__ == "__main__":
     unittest.main()

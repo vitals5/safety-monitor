@@ -28,6 +28,15 @@ class MockVoluptuous:
     @staticmethod
     def Optional(key, *args, **kwargs):
         return key
+    @staticmethod
+    def Any(*validators):
+        return lambda val: val
+    @staticmethod
+    def In(container):
+        return lambda val: val
+    @staticmethod
+    def All(*validators):
+        return lambda val: val
 
 vol_mock = MockVoluptuous()
 sys.modules["voluptuous"] = vol_mock

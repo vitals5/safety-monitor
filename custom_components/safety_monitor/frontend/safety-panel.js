@@ -111,6 +111,23 @@
       validJson: "✅ Gültiges JSON",
       invalidJson: "❌ Ungültiges JSON",
       entityNotFoundInHA: "Nicht im HA-Zustandsregister gefunden",
+      silenceEntity: "Stummschalt-Entität (Button/Switch):",
+      silenceEntityHelp: "Optional: Button/Schalter am Rauchmelder zum Stummschalten der Sirene am Gerät.",
+      drillEntity: "Alarmübungs-Entität (Button):",
+      drillEntityHelp: "Optional: Löst Vernetzungstest / Alarmübung am Rauchmelder aus.",
+      testEntity: "Selbsttest-Entität (Button):",
+      testEntityHelp: "Optional: Führt einen internen Funktionstest des Melders aus.",
+      batteryEntity: "Batterie-Entität (Sensor):",
+      batteryEntityHelp: "Optional: Sensor für Batteriestand in % (wird automatisch ermittelt, wenn leer gelassen).",
+      btnSelfTest: "🧪 Selbsttest",
+      btnDrill: "🔔 Alarmübung",
+      btnMuteSensor: "🔕 Melder stummschalten",
+      btnIgnoreSensor: "🙈 Temporär ignorieren",
+      btnUnignoreSensor: "👁️ Reaktivieren",
+      badgeIgnored: "🙈 Ignoriert (bis Sensor OK)",
+      batteryWarning: "Schwache Batterie bei Gefahrensensoren",
+      batteryStatus: "Batterie",
+      mainsPowered: "⚡ Netzbetrieb",
     },
     en: {
       appName: "Safety Monitor",
@@ -215,6 +232,23 @@
       validJson: "✅ Valid JSON",
       invalidJson: "❌ Invalid JSON",
       entityNotFoundInHA: "Not found in HA states registry",
+      silenceEntity: "Silence Entity (Button/Switch):",
+      silenceEntityHelp: "Optional: Button/switch on detector to hush/silence physical device alarm.",
+      drillEntity: "Alarm Drill Entity (Button):",
+      drillEntityHelp: "Optional: Triggers mesh evacuation drill or alarm test on detector.",
+      testEntity: "Self-Test Entity (Button):",
+      testEntityHelp: "Optional: Runs internal self-test on the detector.",
+      batteryEntity: "Battery Entity (Sensor):",
+      batteryEntityHelp: "Optional: Sensor for battery percentage (auto-detected if left blank).",
+      btnSelfTest: "🧪 Self-Test",
+      btnDrill: "🔔 Drill",
+      btnMuteSensor: "🔕 Silence Detector",
+      btnIgnoreSensor: "🙈 Ignore Alert",
+      btnUnignoreSensor: "👁️ Unignore",
+      badgeIgnored: "🙈 Ignored (until sensor clear)",
+      batteryWarning: "Low Battery Warning on Hazard Sensors",
+      batteryStatus: "Battery",
+      mainsPowered: "⚡ Mains / n/a",
     }
   };
 
@@ -410,8 +444,19 @@
               this._config.state = status.state;
               changed = true;
             }
+            const oldIgnored = (this._config.ignored_sensors || []).join(',');
+            const newIgnored = (status.ignored_sensors || []).join(',');
+            if (oldIgnored !== newIgnored) changed = true;
+
+            const oldTriggers = Object.keys(this._config.active_triggers || {}).join(',');
+            const newTriggers = Object.keys(status.active_triggers || {}).join(',');
+            if (oldTriggers !== newTriggers) changed = true;
+
             this._config.active_triggers = status.active_triggers || {};
             this._config.offline_sensors = status.offline_sensors || [];
+            this._config.ignored_sensors = status.ignored_sensors || [];
+            this._config.sensor_batteries = status.sensor_batteries || {};
+            this._config.low_battery_sensors = status.low_battery_sensors || {};
             if (changed || Object.keys(this._config.active_triggers).length > 0) {
               this._render();
             }
@@ -498,6 +543,34 @@
         } catch (err) {
           alert("Error triggering alarm: " + err.message);
         }
+      }
+    }
+
+    async _triggerSensorButton(entityId, buttonType) {
+      try {
+        await this._hass.callWS({
+          type: "safety_monitor/sensor/trigger_button",
+          sensor_entity_id: entityId,
+          button_type: buttonType,
+        });
+        await this._loadData();
+      } catch (err) {
+        alert("Fehler beim Ausführen des Melder-Befehls: " + (err.message || err));
+        throw err;
+      }
+    }
+
+    async _setSensorIgnored(entityId, ignored) {
+      try {
+        await this._hass.callWS({
+          type: "safety_monitor/sensor/ignore",
+          entity_id: entityId,
+          ignored: !!ignored,
+        });
+        await this._loadData();
+      } catch (err) {
+        alert("Fehler beim Ignorieren des Melders: " + (err.message || err));
+        throw err;
       }
     }
 
@@ -1734,6 +1807,9 @@
         desc = this._t("statusTestingDesc");
       }
 
+      const lowBatteries = this._config.low_battery_sensors || {};
+      const lowBatteryEntries = Object.entries(lowBatteries);
+
       return `
         <!-- Main Hero Banner -->
         <div class="status-banner ${state}">
@@ -1762,6 +1838,24 @@
           </div>
         </div>
 
+        <!-- Low Battery Warning Banner -->
+        ${lowBatteryEntries.length > 0 ? `
+          <div class="card" style="border-left: 4px solid #f57f17; background: rgba(245, 127, 23, 0.08); margin-bottom: 20px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <span style="font-size: 26px;">🪫</span>
+                <div>
+                  <h4 style="margin: 0; font-size: 15px; font-weight: 700; color: #f57f17;">${this._t("batteryWarning")}</h4>
+                  <p style="margin: 2px 0 0 0; font-size: 13px; color: var(--secondary-text-color, #757575);">
+                    Folgende Melder haben einen kritischen Batteriestand (&lt; 15%):
+                    <strong>${lowBatteryEntries.map(([eid, b]) => `${b.name || eid} (${b.level}%)`).join(', ')}</strong>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        ` : ''}
+
         <!-- Active Hazards List -->
         <div class="card">
           <div class="card-header">
@@ -1778,17 +1872,44 @@
                     <th>${this._t("thSensor")}</th>
                     <th>${this._t("thZone")}</th>
                     <th>Zeitpunkt</th>
+                    <th>${this._t("thActions")}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  ${activeTriggers.map(t => `
-                    <tr style="background: rgba(211, 47, 47, 0.05);">
-                      <td><span class="badge badge-${t.type}">${this._getTypeIcon(t.type)} ${this._getTypeName(t.type)}</span></td>
-                      <td><strong>${t.name}</strong><br><small style="color: var(--secondary-text-color, #888);">${t.entity_id}</small></td>
-                      <td><span class="badge badge-zone">${t.zone}</span></td>
-                      <td>${new Date(t.timestamp).toLocaleTimeString()}</td>
-                    </tr>
-                  `).join('')}
+                  ${activeTriggers.map(t => {
+                    const isIgnored = (this._config.ignored_sensors || []).includes(t.entity_id);
+                    const sensorConf = (this._config.sensors || {})[t.entity_id] || {};
+                    const hasSilence = !!sensorConf.silence_entity;
+                    return `
+                      <tr style="background: ${isIgnored ? 'rgba(127, 127, 127, 0.08)' : 'rgba(211, 47, 47, 0.05)'};">
+                        <td><span class="badge badge-${t.type}">${this._getTypeIcon(t.type)} ${this._getTypeName(t.type)}</span></td>
+                        <td><strong>${t.name}</strong><br><small style="color: var(--secondary-text-color, #888);">${t.entity_id}</small></td>
+                        <td><span class="badge badge-zone">${t.zone}</span></td>
+                        <td>${new Date(t.timestamp).toLocaleTimeString()}</td>
+                        <td>
+                          ${isIgnored ? `
+                            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                              <span class="badge badge-status-offline">${this._t("badgeIgnored")}</span>
+                              <button class="btn-sm btn-unignore-hazard" data-entity-id="${t.entity_id}">
+                                ${this._t("btnUnignoreSensor")}
+                              </button>
+                            </div>
+                          ` : `
+                            <div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
+                              ${hasSilence ? `
+                                <button class="btn-sm btn-silence-hazard" data-entity-id="${t.entity_id}" title="${this._t("silenceEntityHelp")}">
+                                  ${this._t("btnMuteSensor")}
+                                </button>
+                              ` : ''}
+                              <button class="btn-sm danger btn-ignore-hazard" data-entity-id="${t.entity_id}" title="${this._t("btnIgnoreSensor")}">
+                                ${this._t("btnIgnoreSensor")}
+                              </button>
+                            </div>
+                          `}
+                        </td>
+                      </tr>
+                    `;
+                  }).join('')}
                 </tbody>
               </table>
             </div>
@@ -1842,12 +1963,24 @@
 
     _renderSensorsTableRows(filtered) {
       if (filtered.length === 0) {
-        return `<tr><td colspan="7" style="text-align: center; color: var(--secondary-text-color, #757575); padding: 24px;">Keine Sensoren gefunden.</td></tr>`;
+        return `<tr><td colspan="8" style="text-align: center; color: var(--secondary-text-color, #757575); padding: 24px;">Keine Sensoren gefunden.</td></tr>`;
       }
       return filtered.map(s => {
         const haState = this._hass && this._hass.states[s.entity_id];
         const isOn = haState && haState.state === 'on';
         const isOff = haState && haState.state === 'off';
+        const isIgnored = (this._config.ignored_sensors || []).includes(s.entity_id);
+        const bInfo = (this._config.sensor_batteries || {})[s.entity_id];
+        let batteryBadge = `<span style="color: var(--secondary-text-color, #757575); font-size: 12px;">${this._t("mainsPowered")}</span>`;
+        if (bInfo && bInfo.level !== null && bInfo.level !== undefined) {
+          const isLow = bInfo.is_low || bInfo.level < 15;
+          batteryBadge = `
+            <span class="badge" style="background: ${isLow ? 'rgba(211, 47, 47, 0.15)' : 'rgba(46, 125, 50, 0.15)'}; color: ${isLow ? '#d32f2f' : '#2e7d32'}; border: 1px solid ${isLow ? 'rgba(211, 47, 47, 0.3)' : 'rgba(46, 125, 50, 0.3)'};">
+              ${isLow ? '🪫' : '🔋'} ${bInfo.level}%
+            </span>
+          `;
+        }
+
         return `
           <tr>
             <td>
@@ -1866,14 +1999,20 @@
               ${s.auto_ack_on_clear ? '<span class="badge badge-feature-ack">Auto-Ack</span> ' : ''}
               ${(!s.double_knock && !s.auto_ack_on_clear) ? '<span style="color: var(--secondary-text-color, #757575); font-size: 12px;">Standard</span>' : ''}
             </td>
+            <td>${batteryBadge}</td>
             <td>
               <span class="badge ${isOn ? 'badge-status-on' : isOff ? 'badge-status-off' : 'badge-status-offline'}">
-                ${isOn ? 'GEFAHR' : isOff ? 'Normal' : 'Offline'}
+                ${isOn ? (isIgnored ? 'GEFAHR (Ignoriert)' : 'GEFAHR') : isOff ? (isIgnored ? 'Normal (Ignoriert)' : 'Normal') : 'Offline'}
               </span>
             </td>
             <td>
-              <button class="btn-sm btn-edit-sensor" data-entity-id="${s.entity_id}">${this._t("edit")}</button>
-              <button class="btn-sm danger btn-delete-sensor" data-entity-id="${s.entity_id}">${this._t("delete")}</button>
+              <div style="display: flex; gap: 4px; flex-wrap: wrap; align-items: center;">
+                ${s.test_entity ? `<button class="btn-sm btn-sensor-test" data-entity-id="${s.entity_id}" title="${this._t("testEntityHelp")}">${this._t("btnSelfTest")}</button>` : ''}
+                ${s.drill_entity ? `<button class="btn-sm btn-sensor-drill" data-entity-id="${s.entity_id}" title="${this._t("drillEntityHelp")}">${this._t("btnDrill")}</button>` : ''}
+                ${s.silence_entity ? `<button class="btn-sm btn-sensor-silence" data-entity-id="${s.entity_id}" title="${this._t("silenceEntityHelp")}">${this._t("btnMuteSensor")}</button>` : ''}
+                <button class="btn-sm btn-edit-sensor" data-entity-id="${s.entity_id}">${this._t("edit")}</button>
+                <button class="btn-sm danger btn-delete-sensor" data-entity-id="${s.entity_id}">${this._t("delete")}</button>
+              </div>
             </td>
           </tr>
         `;
@@ -1908,6 +2047,78 @@
           if (confirm(`Sensor '${eid}' wirklich entfernen?`)) {
             await this._hass.callWS({ type: "safety_monitor/sensor/delete", entity_id: eid });
             await this._loadData();
+          }
+        });
+      });
+
+      root.querySelectorAll('.btn-sensor-test').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const targetBtn = e.currentTarget;
+          const eid = targetBtn.dataset.entityId;
+          const orig = targetBtn.innerHTML;
+          targetBtn.disabled = true;
+          targetBtn.innerHTML = '⏳...';
+          try {
+            await this._triggerSensorButton(eid, 'test');
+            targetBtn.innerHTML = '✅';
+            setTimeout(() => {
+              targetBtn.innerHTML = orig;
+              targetBtn.disabled = false;
+            }, 2000);
+          } catch (_) {
+            targetBtn.innerHTML = '❌';
+            setTimeout(() => {
+              targetBtn.innerHTML = orig;
+              targetBtn.disabled = false;
+            }, 2500);
+          }
+        });
+      });
+
+      root.querySelectorAll('.btn-sensor-drill').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const targetBtn = e.currentTarget;
+          const eid = targetBtn.dataset.entityId;
+          const orig = targetBtn.innerHTML;
+          targetBtn.disabled = true;
+          targetBtn.innerHTML = '⏳...';
+          try {
+            await this._triggerSensorButton(eid, 'drill');
+            targetBtn.innerHTML = '✅';
+            setTimeout(() => {
+              targetBtn.innerHTML = orig;
+              targetBtn.disabled = false;
+            }, 2000);
+          } catch (_) {
+            targetBtn.innerHTML = '❌';
+            setTimeout(() => {
+              targetBtn.innerHTML = orig;
+              targetBtn.disabled = false;
+            }, 2500);
+          }
+        });
+      });
+
+      root.querySelectorAll('.btn-sensor-silence').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const targetBtn = e.currentTarget;
+          const eid = targetBtn.dataset.entityId;
+          const orig = targetBtn.innerHTML;
+          targetBtn.disabled = true;
+          targetBtn.innerHTML = '⏳...';
+          try {
+            await this._triggerSensorButton(eid, 'silence');
+            targetBtn.innerHTML = '✅';
+            setTimeout(() => {
+              targetBtn.innerHTML = orig;
+              targetBtn.disabled = false;
+            }, 2000);
+          } catch (_) {
+            targetBtn.innerHTML = '❌';
+            setTimeout(() => {
+              targetBtn.innerHTML = orig;
+              targetBtn.disabled = false;
+            }, 2500);
           }
         });
       });
@@ -2027,6 +2238,10 @@
             auto_ack_on_clear: false,
             double_knock: false,
             linked_shutoff: [],
+            silence_entity: (cand && cand.suggested_silence) || '',
+            drill_entity: (cand && cand.suggested_drill) || '',
+            test_entity: (cand && cand.suggested_test) || '',
+            battery_entity: (cand && cand.suggested_battery) || '',
           };
           this._modalOpen = 'sensor';
           this._render();
@@ -2110,6 +2325,7 @@
                   <th>${this._t("thType")}</th>
                   <th>${this._t("thPreAlarm")}</th>
                   <th>${this._t("thFeatures")}</th>
+                  <th>${this._t("batteryStatus")}</th>
                   <th>${this._t("thStatus")}</th>
                   <th>${this._t("thActions")}</th>
                 </tr>
@@ -2338,6 +2554,46 @@
                   ${this._t("autoAckHelp")}
                 </label>
               </div>
+
+              <!-- Detector specific control entities -->
+              <div style="margin-top: 12px; margin-bottom: 12px; padding: 12px; background: var(--secondary-background-color, rgba(127, 127, 127, 0.08)); border-radius: 8px; border: 1px solid var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.2)));">
+                <div style="font-weight: 600; font-size: 13px; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+                  <span>🔕</span> <span>Erweiterte Melder-Funktionen & Tasten</span>
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 10px;">
+                  <label class="form-label">${this._t("silenceEntity")}</label>
+                  <input type="text" class="form-control" id="modal-sensor-silence" value="${s.silence_entity || ''}" placeholder="button.rauchmelder_silence">
+                  <small style="color: var(--secondary-text-color, #757575); font-size: 11px; display: block; margin-top: 2px;">
+                    ${this._t("silenceEntityHelp")}
+                  </small>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 10px;">
+                  <label class="form-label">${this._t("testEntity")}</label>
+                  <input type="text" class="form-control" id="modal-sensor-test" value="${s.test_entity || ''}" placeholder="button.rauchmelder_self_test">
+                  <small style="color: var(--secondary-text-color, #757575); font-size: 11px; display: block; margin-top: 2px;">
+                    ${this._t("testEntityHelp")}
+                  </small>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 10px;">
+                  <label class="form-label">${this._t("drillEntity")}</label>
+                  <input type="text" class="form-control" id="modal-sensor-drill" value="${s.drill_entity || ''}" placeholder="button.rauchmelder_alarm_drill">
+                  <small style="color: var(--secondary-text-color, #757575); font-size: 11px; display: block; margin-top: 2px;">
+                    ${this._t("drillEntityHelp")}
+                  </small>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label">${this._t("batteryEntity")}</label>
+                  <input type="text" class="form-control" id="modal-sensor-battery" value="${s.battery_entity || ''}" placeholder="sensor.rauchmelder_battery">
+                  <small style="color: var(--secondary-text-color, #757575); font-size: 11px; display: block; margin-top: 2px;">
+                    ${this._t("batteryEntityHelp")}
+                  </small>
+                </div>
+              </div>
+
               <div class="modal-actions">
                 <button class="btn btn-secondary" id="btn-modal-cancel">${this._t("cancel")}</button>
                 <button class="btn btn-primary" id="btn-modal-save-sensor">${this._t("save")}</button>
@@ -2637,6 +2893,47 @@
 
       const btnManualTrigger = root.querySelector('#btn-manual-trigger');
       if (btnManualTrigger) btnManualTrigger.addEventListener('click', () => this._manualTrigger());
+
+      // Active Hazard Row Actions (Silence device & Ignore sensor)
+      root.querySelectorAll('.btn-silence-hazard').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const targetBtn = e.currentTarget;
+          const eid = targetBtn.dataset.entityId;
+          const orig = targetBtn.innerHTML;
+          targetBtn.disabled = true;
+          targetBtn.innerHTML = '⏳...';
+          try {
+            await this._triggerSensorButton(eid, 'silence');
+            targetBtn.innerHTML = '✅ Stumm';
+            setTimeout(() => {
+              targetBtn.innerHTML = orig;
+              targetBtn.disabled = false;
+            }, 2000);
+          } catch (_) {
+            targetBtn.innerHTML = '❌';
+            setTimeout(() => {
+              targetBtn.innerHTML = orig;
+              targetBtn.disabled = false;
+            }, 2500);
+          }
+        });
+      });
+
+      root.querySelectorAll('.btn-ignore-hazard').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const eid = e.currentTarget.dataset.entityId;
+          if (confirm(`Melder '${eid}' temporär ignorieren bis Sensor wieder normal (OFF) ist? Dies pausiert Sirenen.`)) {
+            await this._setSensorIgnored(eid, true);
+          }
+        });
+      });
+
+      root.querySelectorAll('.btn-unignore-hazard').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const eid = e.currentTarget.dataset.entityId;
+          await this._setSensorIgnored(eid, false);
+        });
+      });
 
       // Search & Filters
       const searchSensors = root.querySelector('#search-sensors');
@@ -2985,6 +3282,10 @@
           const dk = root.querySelector('#modal-sensor-double-knock').checked;
           const autoAck = root.querySelector('#modal-sensor-auto-ack').checked;
           const shutoffs = (this._editingSensor && this._editingSensor.linked_shutoff) || [];
+          const silenceEntity = root.querySelector('#modal-sensor-silence')?.value.trim() || "";
+          const drillEntity = root.querySelector('#modal-sensor-drill')?.value.trim() || "";
+          const testEntity = root.querySelector('#modal-sensor-test')?.value.trim() || "";
+          const batteryEntity = root.querySelector('#modal-sensor-battery')?.value.trim() || "";
 
           if (!entity) {
             alert("Entity ID ist erforderlich");
@@ -3003,6 +3304,10 @@
                 double_knock: dk,
                 auto_ack_on_clear: autoAck,
                 linked_shutoff: shutoffs,
+                silence_entity: silenceEntity,
+                drill_entity: drillEntity,
+                test_entity: testEntity,
+                battery_entity: batteryEntity,
                 enabled: true,
               }
             });

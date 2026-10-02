@@ -81,7 +81,9 @@ class SafetyCoordinator:
         # State tracking listeners
         self._sensor_unsub: CALLBACK_TYPE | None = None
         self._offline_sensors: set[str] = set()
-        self._low_battery_sensors: dict[str, float] = {}
+        self._ignored_sensors: set[str] = set()
+        self._sensor_batteries: dict[str, dict[str, Any]] = {}
+        self._low_battery_sensors: dict[str, dict[str, Any]] = {}
 
     @property
     def state(self) -> str:
@@ -104,7 +106,17 @@ class SafetyCoordinator:
         return list(self._offline_sensors)
 
     @property
-    def low_battery_sensors(self) -> dict[str, float]:
+    def ignored_sensors(self) -> list[str]:
+        """Return list of currently ignored/muted sensor entity IDs."""
+        return list(self._ignored_sensors)
+
+    @property
+    def sensor_batteries(self) -> dict[str, dict[str, Any]]:
+        """Return cached battery states for all monitored sensors."""
+        return self._sensor_batteries
+
+    @property
+    def low_battery_sensors(self) -> dict[str, dict[str, Any]]:
         """Return sensors reporting low battery levels."""
         return self._low_battery_sensors
 
@@ -113,29 +125,115 @@ class SafetyCoordinator:
         await self.async_update_listeners()
         # Scan initial states of monitored sensors
         self._async_scan_initial_states()
+        self._async_check_all_batteries()
 
     async def async_update_listeners(self) -> None:
-        """Re-bind event listener to all configured sensors."""
+        """Re-bind event listener to all configured sensors and battery entities."""
         if self._sensor_unsub is not None:
             self._sensor_unsub()
             self._sensor_unsub = None
 
         monitored_sensors = self.store.async_get_sensors()
-        entities = [
-            entity_id
-            for entity_id, cfg in monitored_sensors.items()
-            if cfg.get("enabled", True)
-        ]
+        entities: set[str] = set()
+        for entity_id, cfg in monitored_sensors.items():
+            if cfg.get("enabled", True):
+                entities.add(entity_id)
+                bat_eid = cfg.get("battery_entity")
+                if bat_eid:
+                    entities.add(bat_eid)
 
         if entities:
             self._sensor_unsub = async_track_state_change_event(
-                self.hass, entities, self._async_on_sensor_state_change
+                self.hass, list(entities), self._async_on_sensor_state_change
             )
             _LOGGER.debug(
-                "Tracking state changes for %d safety sensors: %s",
+                "Tracking state changes for %d safety entities: %s",
                 len(entities),
                 entities,
             )
+        self._async_check_all_batteries()
+
+    def _async_check_sensor_battery(
+        self, entity_id: str, sensor_cfg: dict[str, Any] | None = None
+    ) -> None:
+        """Scan and cache battery level for a monitored sensor."""
+        if sensor_cfg is None:
+            sensor_cfg = self.store.async_get_sensor(entity_id) or {}
+
+        battery_eid = sensor_cfg.get("battery_entity")
+        battery_level: float | None = None
+
+        # 1. Configured battery entity
+        if battery_eid:
+            st = self.hass.states.get(battery_eid)
+            if st and st.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+                try:
+                    battery_level = float(st.state)
+                except (ValueError, TypeError):
+                    pass
+
+        # 2. Check attributes of sensor entity itself
+        if battery_level is None:
+            st = self.hass.states.get(entity_id)
+            if st:
+                for attr in ("battery_level", "battery", "battery_state"):
+                    val = st.attributes.get(attr)
+                    if val is not None:
+                        try:
+                            battery_level = float(val)
+                            battery_eid = f"{entity_id} ({attr})"
+                            break
+                        except (ValueError, TypeError):
+                            pass
+
+        # 3. Automatic sibling entity search in HA states
+        if battery_level is None:
+            base_name = entity_id.split(".")[-1]
+            try:
+                for s in self.hass.states.async_all("sensor"):
+                    s_eid = s.entity_id
+                    s_dev_class = s.attributes.get(ATTR_DEVICE_CLASS)
+                    if (s_dev_class == "battery" or s_eid.endswith("_battery") or s_eid.endswith("_batterie")) and (
+                        base_name in s_eid
+                    ):
+                        if s.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+                            try:
+                                battery_level = float(s.state)
+                                battery_eid = s_eid
+                                break
+                            except (ValueError, TypeError):
+                                pass
+            except Exception:
+                pass
+
+        settings = self.store.async_get_settings()
+        threshold = float(settings.get("battery_threshold", DEFAULT_BATTERY_LOW_THRESHOLD))
+
+        if battery_level is not None:
+            is_low = battery_level < threshold
+            self._sensor_batteries[entity_id] = {
+                "level": round(battery_level, 1),
+                "battery_entity": battery_eid or entity_id,
+                "low": is_low,
+            }
+            if is_low:
+                self._low_battery_sensors[entity_id] = {
+                    "level": round(battery_level, 1),
+                    "name": sensor_cfg.get("name", entity_id),
+                    "battery_entity": battery_eid or entity_id,
+                }
+            else:
+                self._low_battery_sensors.pop(entity_id, None)
+        else:
+            self._sensor_batteries.pop(entity_id, None)
+            self._low_battery_sensors.pop(entity_id, None)
+
+    def _async_check_all_batteries(self) -> None:
+        """Scan battery levels for all monitored sensors."""
+        monitored = self.store.async_get_sensors()
+        for entity_id, cfg in monitored.items():
+            if cfg.get("enabled", True):
+                self._async_check_sensor_battery(entity_id, cfg)
 
     @callback
     def _async_scan_initial_states(self) -> None:
@@ -157,11 +255,29 @@ class SafetyCoordinator:
                 )
 
     async def _async_on_sensor_state_change(self, event: Event) -> None:
-        """Handle state change event for a monitored sensor."""
+        """Handle state change event for a monitored sensor or battery entity."""
         entity_id = event.data.get("entity_id")
         new_state = event.data.get("new_state")
         if new_state is None:
             return
+
+        monitored = self.store.async_get_sensors()
+        is_monitored_hazard = entity_id in monitored
+
+        if not is_monitored_hazard:
+            # Check if this is a battery entity belonging to one of our monitored sensors
+            updated_any = False
+            for m_eid, cfg in monitored.items():
+                if cfg.get("battery_entity") == entity_id:
+                    self._async_check_sensor_battery(m_eid, cfg)
+                    updated_any = True
+            if updated_any:
+                self._async_notify_update()
+            return
+
+        # Monitored hazard sensor: Update battery if reporting via attribute
+        sensor_cfg = monitored.get(entity_id) or {}
+        self._async_check_sensor_battery(entity_id, sensor_cfg)
 
         # Check offline condition
         if new_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
@@ -197,6 +313,25 @@ class SafetyCoordinator:
             if state_obj
             else sensor_name
         )
+
+        # Operator ignore check: if sensor is marked as ignored, record trigger but do NOT escalate alarm
+        if entity_id in self._ignored_sensors:
+            _LOGGER.info(
+                "Sensor %s triggered, but is currently marked as IGNORED by operator. Skipping alarm escalation.",
+                entity_id,
+            )
+            trigger_data = {
+                "entity_id": entity_id,
+                "name": friendly_name or sensor_name,
+                "type": sensor_type,
+                "zone": zone_id,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "ignored": True,
+            }
+            self._active_triggers[entity_id] = trigger_data
+            self._last_trigger = trigger_data
+            self._async_notify_update()
+            return
 
         trigger_data = {
             "entity_id": entity_id,
@@ -444,6 +579,14 @@ class SafetyCoordinator:
             self._pre_alarm_timers.pop(entity_id, None)
             self._pre_alarm_expires.pop(entity_id, None)
 
+        # Automatically clear temporary ignore status when sensor returns to OFF (ok)
+        if entity_id in self._ignored_sensors:
+            self._ignored_sensors.discard(entity_id)
+            _LOGGER.info(
+                "Sensor %s returned to OFF; temporary ignore status removed.",
+                entity_id,
+            )
+
         sensor_cfg = self.store.async_get_sensor(entity_id) or {}
         auto_ack = sensor_cfg.get("auto_ack_on_clear", False)
 
@@ -470,6 +613,12 @@ class SafetyCoordinator:
 
         # Execute silence actions (stop sirens, restore lights)
         await self.actions.async_execute_silence()
+
+        # Also trigger silence_entity on any active hazard sensors if configured
+        for eid in list(self._active_triggers.keys()):
+            sensor_cfg = self.store.async_get_sensor(eid)
+            if sensor_cfg and sensor_cfg.get("silence_entity"):
+                await self.async_trigger_sensor_button(eid, "silence")
 
         # Start silence timer
         settings = self.store.async_get_settings()
@@ -521,6 +670,9 @@ class SafetyCoordinator:
 
         _LOGGER.info("Resetting Safety Monitor to NORMAL")
         self._set_state(STATE_NORMAL)
+
+        # Clear ignored sensor flags on reset
+        self._ignored_sensors.clear()
 
         # Cancel all pending timers
         for unsub in self._pre_alarm_timers.values():
@@ -634,6 +786,135 @@ class SafetyCoordinator:
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         await self._async_escalate_to_triggered("manual.alarm", fake_cfg)
+
+    async def async_trigger_sensor_button(
+        self, sensor_entity_id: str, button_type: str
+    ) -> bool:
+        """Trigger a physical sensor button (silence, test, or drill)."""
+        sensor_cfg = self.store.async_get_sensor(sensor_entity_id)
+        if not sensor_cfg:
+            _LOGGER.warning("Cannot trigger button: Sensor '%s' not configured", sensor_entity_id)
+            return False
+
+        target_entity = None
+        action_name = button_type
+        if button_type == "silence":
+            target_entity = sensor_cfg.get("silence_entity")
+            action_name = "Stummschaltung"
+        elif button_type == "test":
+            target_entity = sensor_cfg.get("test_entity")
+            action_name = "Selbsttest"
+        elif button_type == "drill":
+            target_entity = sensor_cfg.get("drill_entity")
+            action_name = "Alarmübung"
+
+        if not target_entity:
+            _LOGGER.warning(
+                "Sensor '%s' has no '%s' entity configured",
+                sensor_entity_id,
+                button_type,
+            )
+            return False
+
+        domain = target_entity.split(".")[0]
+        service = "press" if domain == "button" else "turn_on"
+        try:
+            await self.hass.services.async_call(
+                domain,
+                service,
+                {},
+                target={"entity_id": [target_entity]},
+                blocking=True,
+            )
+            _LOGGER.info(
+                "Successfully triggered %s (%s.%s on %s) for sensor %s",
+                action_name,
+                domain,
+                service,
+                target_entity,
+                sensor_entity_id,
+            )
+            await self.store.async_add_history(
+                {
+                    "event": f"sensor_{button_type}",
+                    "entity_id": sensor_entity_id,
+                    "name": sensor_cfg.get("name", sensor_entity_id),
+                    "details": f"{action_name} ausgelöst über {target_entity}",
+                }
+            )
+            self._async_notify_update()
+            return True
+        except Exception as err:
+            _LOGGER.error(
+                "Failed to trigger %s for sensor %s via %s: %s",
+                action_name,
+                sensor_entity_id,
+                target_entity,
+                err,
+            )
+            return False
+
+    async def async_set_sensor_ignored(
+        self, entity_id: str, ignored: bool = True
+    ) -> bool:
+        """Temporarily ignore/mute a triggered sensor until it clears."""
+        sensor_cfg = self.store.async_get_sensor(entity_id)
+        sensor_name = sensor_cfg.get("name", entity_id) if sensor_cfg else entity_id
+
+        if ignored:
+            self._ignored_sensors.add(entity_id)
+            if entity_id in self._active_triggers:
+                self._active_triggers[entity_id]["ignored"] = True
+
+            # Cancel pre-alarm timers for this sensor if active
+            if entity_id in self._pre_alarm_timers:
+                self._pre_alarm_timers[entity_id]()
+                self._pre_alarm_timers.pop(entity_id, None)
+                self._pre_alarm_expires.pop(entity_id, None)
+
+            await self.store.async_add_history(
+                {
+                    "event": "sensor_ignored",
+                    "entity_id": entity_id,
+                    "name": sensor_name,
+                    "details": "Melder temporär ignoriert (bis Sensor wieder OK meldet)",
+                }
+            )
+            _LOGGER.info("Sensor '%s' temporarily ignored by operator until clear.", entity_id)
+
+            # If all active triggers are now ignored, silence sirens
+            non_ignored = [
+                eid for eid, t in self._active_triggers.items()
+                if eid not in self._ignored_sensors
+            ]
+            if len(non_ignored) == 0:
+                if self._state in (STATE_TRIGGERED, STATE_PRE_ALARM):
+                    _LOGGER.info(
+                        "All active hazard triggers are ignored. Silencing sirens."
+                    )
+                    self._cancel_repeating_actions([PHASE_ACOUSTIC_OPTICAL])
+                    await self.actions.async_execute_silence()
+                    self._set_state(STATE_SILENCED)
+        else:
+            self._ignored_sensors.discard(entity_id)
+            if entity_id in self._active_triggers:
+                self._active_triggers[entity_id]["ignored"] = False
+            await self.store.async_add_history(
+                {
+                    "event": "sensor_unignored",
+                    "entity_id": entity_id,
+                    "name": sensor_name,
+                    "details": "Ignorieren des Melders aufgehoben",
+                }
+            )
+            _LOGGER.info("Sensor '%s' un-ignored by operator.", entity_id)
+            # If sensor is currently ON, re-trigger
+            st = self.hass.states.get(entity_id)
+            if st and st.state == STATE_ON:
+                await self._async_handle_sensor_trigger(entity_id, st)
+
+        self._async_notify_update()
+        return True
 
     def _set_state(self, new_state: str) -> None:
         """Update internal state and fire state changed event."""
