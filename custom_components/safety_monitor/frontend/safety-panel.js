@@ -2526,6 +2526,9 @@
                     Tippen Sie zur Live-Suche oder wählen Sie aus den gefundenen Sensoren.
                   </small>
                 ` : ''}
+                <div id="modal-sensor-entity-preview">
+                  ${this._renderTargetPreview(s.entity_id || '')}
+                </div>
               </div>
               <div class="form-group">
                 <label class="form-label">Name</label>
@@ -2571,36 +2574,88 @@
                   <span>🔕</span> <span>Erweiterte Melder-Funktionen & Tasten</span>
                 </div>
                 
-                <div class="form-group" style="margin-bottom: 10px;">
+                <div class="form-group" style="margin-bottom: 14px; position: relative;">
                   <label class="form-label">${this._t("silenceEntity")}</label>
-                  <input type="text" class="form-control" id="modal-sensor-silence" value="${s.silence_entity || ''}" placeholder="button.rauchmelder_silence">
+                  <div style="position: relative;">
+                    <input
+                      type="text"
+                      class="form-control"
+                      id="modal-sensor-silence"
+                      value="${s.silence_entity || ''}"
+                      placeholder="button.rauchmelder_silence"
+                      autocomplete="off"
+                    >
+                    <div id="sensor-silence-suggestions" class="suggestions-dropdown"></div>
+                  </div>
                   <small style="color: var(--secondary-text-color, #757575); font-size: 11px; display: block; margin-top: 2px;">
                     ${this._t("silenceEntityHelp")}
                   </small>
+                  <div id="modal-sensor-silence-preview">
+                    ${this._renderTargetPreview(s.silence_entity || '')}
+                  </div>
                 </div>
 
-                <div class="form-group" style="margin-bottom: 10px;">
+                <div class="form-group" style="margin-bottom: 14px; position: relative;">
                   <label class="form-label">${this._t("testEntity")}</label>
-                  <input type="text" class="form-control" id="modal-sensor-test" value="${s.test_entity || ''}" placeholder="button.rauchmelder_self_test">
+                  <div style="position: relative;">
+                    <input
+                      type="text"
+                      class="form-control"
+                      id="modal-sensor-test"
+                      value="${s.test_entity || ''}"
+                      placeholder="button.rauchmelder_self_test"
+                      autocomplete="off"
+                    >
+                    <div id="sensor-test-suggestions" class="suggestions-dropdown"></div>
+                  </div>
                   <small style="color: var(--secondary-text-color, #757575); font-size: 11px; display: block; margin-top: 2px;">
                     ${this._t("testEntityHelp")}
                   </small>
+                  <div id="modal-sensor-test-preview">
+                    ${this._renderTargetPreview(s.test_entity || '')}
+                  </div>
                 </div>
 
-                <div class="form-group" style="margin-bottom: 10px;">
+                <div class="form-group" style="margin-bottom: 14px; position: relative;">
                   <label class="form-label">${this._t("drillEntity")}</label>
-                  <input type="text" class="form-control" id="modal-sensor-drill" value="${s.drill_entity || ''}" placeholder="button.rauchmelder_alarm_drill">
+                  <div style="position: relative;">
+                    <input
+                      type="text"
+                      class="form-control"
+                      id="modal-sensor-drill"
+                      value="${s.drill_entity || ''}"
+                      placeholder="button.rauchmelder_alarm_drill"
+                      autocomplete="off"
+                    >
+                    <div id="sensor-drill-suggestions" class="suggestions-dropdown"></div>
+                  </div>
                   <small style="color: var(--secondary-text-color, #757575); font-size: 11px; display: block; margin-top: 2px;">
                     ${this._t("drillEntityHelp")}
                   </small>
+                  <div id="modal-sensor-drill-preview">
+                    ${this._renderTargetPreview(s.drill_entity || '')}
+                  </div>
                 </div>
 
-                <div class="form-group" style="margin-bottom: 0;">
+                <div class="form-group" style="margin-bottom: 0; position: relative;">
                   <label class="form-label">${this._t("batteryEntity")}</label>
-                  <input type="text" class="form-control" id="modal-sensor-battery" value="${s.battery_entity || ''}" placeholder="sensor.rauchmelder_battery">
+                  <div style="position: relative;">
+                    <input
+                      type="text"
+                      class="form-control"
+                      id="modal-sensor-battery"
+                      value="${s.battery_entity || ''}"
+                      placeholder="sensor.rauchmelder_battery"
+                      autocomplete="off"
+                    >
+                    <div id="sensor-battery-suggestions" class="suggestions-dropdown"></div>
+                  </div>
                   <small style="color: var(--secondary-text-color, #757575); font-size: 11px; display: block; margin-top: 2px;">
                     ${this._t("batteryEntityHelp")}
                   </small>
+                  <div id="modal-sensor-battery-preview">
+                    ${this._renderTargetPreview(s.battery_entity || '')}
+                  </div>
                 </div>
               </div>
 
@@ -3115,6 +3170,10 @@
               const devClass = item.dataset.class;
 
               entityInput.value = eid;
+              const mainPreviewEl = root.querySelector('#modal-sensor-entity-preview');
+              if (mainPreviewEl) {
+                mainPreviewEl.innerHTML = this._renderTargetPreview(eid);
+              }
               if (nameInput && (!nameInput.value || nameInput.value === eid)) {
                 nameInput.value = name;
               }
@@ -3133,7 +3192,12 @@
         };
 
         entityInput.addEventListener('input', (e) => {
-          renderSuggestions(e.target.value);
+          const val = e.target.value;
+          const mainPreviewEl = root.querySelector('#modal-sensor-entity-preview');
+          if (mainPreviewEl) {
+            mainPreviewEl.innerHTML = this._renderTargetPreview(val);
+          }
+          renderSuggestions(val);
         });
 
         entityInput.addEventListener('focus', (e) => {
@@ -3145,6 +3209,198 @@
             suggestionsBox.classList.remove('visible');
           }, 200);
         });
+      }
+
+      // Reusable helper for single entity autocomplete dropdown & live preview
+      const setupEntityAutocomplete = (inputEl, suggestionsEl, previewEl, filterFn, priorityTerms = []) => {
+        if (!inputEl || !suggestionsEl) return;
+
+        const getAllEntities = (query = "") => {
+          if (!this._hass || !this._hass.states) return [];
+          const list = [];
+          Object.keys(this._hass.states).forEach(eid => {
+            const st = this._hass.states[eid];
+            if (filterFn(eid, st, query)) {
+              const fn = (st.attributes && st.attributes.friendly_name) || eid;
+              const dom = eid.split('.')[0];
+              list.push({
+                entity_id: eid,
+                name: fn,
+                domain: dom,
+                state: st.state,
+                stateObj: st,
+              });
+            }
+          });
+          return list;
+        };
+
+        const renderSuggestions = (query = "") => {
+          const q = (query || "").toLowerCase().trim();
+          const all = getAllEntities(q);
+          const currentMainSensor = (root.querySelector('#modal-sensor-entity')?.value || '').toLowerCase().trim();
+          const mainPrefix = currentMainSensor.includes('.') ? currentMainSensor.split('.')[1] : currentMainSensor;
+          const mainTokens = mainPrefix ? mainPrefix.split('_').filter(t => t.length > 2) : [];
+
+          let matches = all;
+          if (q) {
+            matches = all.filter(c =>
+              c.entity_id.toLowerCase().includes(q) ||
+              c.name.toLowerCase().includes(q)
+            );
+          }
+
+          matches.sort((a, b) => {
+            const aId = a.entity_id.toLowerCase();
+            const bId = b.entity_id.toLowerCase();
+            const aName = a.name.toLowerCase();
+            const bName = b.name.toLowerCase();
+
+            let aScore = 0;
+            let bScore = 0;
+            if (mainPrefix && aId.includes(mainPrefix)) aScore += 100;
+            if (mainPrefix && bId.includes(mainPrefix)) bScore += 100;
+
+            mainTokens.forEach(tok => {
+              if (aId.includes(tok) || aName.includes(tok)) aScore += 20;
+              if (bId.includes(tok) || bName.includes(tok)) bScore += 20;
+            });
+
+            priorityTerms.forEach(term => {
+              if (aId.includes(term) || aName.includes(term)) aScore += 15;
+              if (bId.includes(term) || bName.includes(term)) bScore += 15;
+            });
+
+            if (aScore !== bScore) return bScore - aScore;
+            return a.name.localeCompare(b.name);
+          });
+
+          if (matches.length === 0) {
+            suggestionsEl.innerHTML = `
+              <div style="padding: 10px 14px; font-size: 12px; color: var(--secondary-text-color, #757575);">
+                Keine passenden Entitäten gefunden.
+              </div>
+            `;
+            suggestionsEl.classList.add('visible');
+            return;
+          }
+
+          const top = matches.slice(0, 20);
+          suggestionsEl.innerHTML = top.map(c => {
+            const domIcon = this._getDomainIcon(c.domain);
+            const isMatch = mainPrefix && (c.entity_id.toLowerCase().includes(mainPrefix) || mainTokens.some(tok => c.entity_id.toLowerCase().includes(tok)));
+            const uom = c.stateObj?.attributes?.unit_of_measurement;
+            const stateDisplay = uom ? `${c.state} ${uom}` : c.state;
+            return `
+              <div class="suggestion-item" data-entity-id="${c.entity_id}">
+                <div class="suggestion-info">
+                  <span class="suggestion-name">
+                    ${domIcon} <strong>${c.name}</strong> ${isMatch ? '<span style="color: #ff9800; font-size: 11px;">⭐ [Passend]</span>' : ''}
+                  </span>
+                  <span class="suggestion-entity">${c.entity_id}</span>
+                </div>
+                <div>
+                  <span class="badge badge-generic" style="font-size: 11px;">
+                    ${stateDisplay !== undefined ? stateDisplay : c.domain}
+                  </span>
+                </div>
+              </div>
+            `;
+          }).join('');
+          suggestionsEl.classList.add('visible');
+
+          suggestionsEl.querySelectorAll('.suggestion-item').forEach(item => {
+            item.addEventListener('mousedown', (e) => {
+              e.preventDefault();
+              const eid = item.dataset.entityId;
+              inputEl.value = eid;
+              suggestionsEl.classList.remove('visible');
+              if (previewEl) {
+                previewEl.innerHTML = this._renderTargetPreview(eid);
+              }
+            });
+          });
+        };
+
+        inputEl.addEventListener('input', (e) => {
+          const val = e.target.value;
+          if (previewEl) {
+            previewEl.innerHTML = this._renderTargetPreview(val);
+          }
+          renderSuggestions(val);
+        });
+
+        inputEl.addEventListener('focus', (e) => {
+          renderSuggestions(e.target.value);
+        });
+
+        inputEl.addEventListener('blur', () => {
+          setTimeout(() => {
+            suggestionsEl.classList.remove('visible');
+          }, 200);
+        });
+      };
+
+      // 1. Wire silence entity autocomplete & preview
+      const silenceInput = root.querySelector('#modal-sensor-silence');
+      const silenceSuggestions = root.querySelector('#sensor-silence-suggestions');
+      const silencePreview = root.querySelector('#modal-sensor-silence-preview');
+      if (silenceInput && silenceSuggestions) {
+        setupEntityAutocomplete(
+          silenceInput,
+          silenceSuggestions,
+          silencePreview,
+          (eid) => eid.startsWith('button.') || eid.startsWith('switch.') || eid.startsWith('input_boolean.'),
+          ['silence', 'mute', 'hush', 'stumm', 'sirene', 'alarm']
+        );
+      }
+
+      // 2. Wire test entity autocomplete & preview
+      const testInput = root.querySelector('#modal-sensor-test');
+      const testSuggestions = root.querySelector('#sensor-test-suggestions');
+      const testPreview = root.querySelector('#modal-sensor-test-preview');
+      if (testInput && testSuggestions) {
+        setupEntityAutocomplete(
+          testInput,
+          testSuggestions,
+          testPreview,
+          (eid) => eid.startsWith('button.'),
+          ['test', 'self_test', 'selbsttest', 'pruef', 'check']
+        );
+      }
+
+      // 3. Wire drill entity autocomplete & preview
+      const drillInput = root.querySelector('#modal-sensor-drill');
+      const drillSuggestions = root.querySelector('#sensor-drill-suggestions');
+      const drillPreview = root.querySelector('#modal-sensor-drill-preview');
+      if (drillInput && drillSuggestions) {
+        setupEntityAutocomplete(
+          drillInput,
+          drillSuggestions,
+          drillPreview,
+          (eid) => eid.startsWith('button.'),
+          ['drill', 'alarm', 'uebung', 'mesh', 'vernetzung', 'siren']
+        );
+      }
+
+      // 4. Wire battery entity autocomplete & preview
+      const batteryInput = root.querySelector('#modal-sensor-battery');
+      const batterySuggestions = root.querySelector('#sensor-battery-suggestions');
+      const batteryPreview = root.querySelector('#modal-sensor-battery-preview');
+      if (batteryInput && batterySuggestions) {
+        setupEntityAutocomplete(
+          batteryInput,
+          batterySuggestions,
+          batteryPreview,
+          (eid, st, q) => {
+            if (!eid.startsWith('sensor.')) return false;
+            if (q) return true;
+            const dc = st?.attributes?.device_class || '';
+            const uom = st?.attributes?.unit_of_measurement || '';
+            return dc === 'battery' || uom === '%' || eid.toLowerCase().includes('batt') || (st?.attributes?.friendly_name || '').toLowerCase().includes('batt');
+          },
+          ['battery', 'batterie', 'level', 'stand', 'batt']
+        );
       }
 
       // Actions Add / Edit / Delete / Test
