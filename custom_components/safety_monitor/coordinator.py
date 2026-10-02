@@ -284,6 +284,7 @@ class SafetyCoordinator:
     async def _async_on_sensor_state_change(self, event: Event) -> None:
         """Handle state change event for a monitored sensor or battery entity."""
         entity_id = event.data.get("entity_id")
+        old_state = event.data.get("old_state")
         new_state = event.data.get("new_state")
         if new_state is None:
             return
@@ -342,10 +343,13 @@ class SafetyCoordinator:
             )
             self._async_notify_update()
 
-        # Check hazard state transitions
-        if new_state.state == STATE_ON:
+        # Check hazard state transitions (only on actual state change, ignoring pure attribute updates)
+        old_state_str = old_state.state if old_state else None
+        new_state_str = new_state.state
+
+        if new_state_str == STATE_ON and old_state_str != STATE_ON:
             await self._async_handle_sensor_trigger(entity_id, new_state)
-        elif new_state.state == STATE_OFF:
+        elif new_state_str == STATE_OFF and old_state_str != STATE_OFF:
             await self._async_handle_sensor_clear(entity_id, new_state)
 
     async def _async_handle_sensor_trigger(
@@ -465,10 +469,13 @@ class SafetyCoordinator:
                         "Double-knock timeout expired for zone '%s' without second confirmation. Cancelling pre-alarm.",
                         zone_id,
                     )
-                    self._double_knock_first_sensors.pop(zone_id, None)
+                    first_sensor_id = self._double_knock_first_sensors.pop(zone_id, None)
                     self._double_knock_timers.pop(zone_id, None)
-                    if self._state == STATE_PRE_ALARM and not self._pre_alarm_timers:
+                    if first_sensor_id and first_sensor_id in self._active_triggers:
+                        self._active_triggers.pop(first_sensor_id, None)
+                    if self._state == STATE_PRE_ALARM and not self._pre_alarm_timers and not self._double_knock_timers:
                         self._set_state(STATE_NORMAL)
+                    self._async_notify_update()
 
                 self._double_knock_timers[zone_id] = async_call_later(
                     self.hass, timeout, _on_double_knock_timeout
@@ -503,6 +510,18 @@ class SafetyCoordinator:
                 self._pre_alarm_timers.pop(entity_id, None)
                 self._pre_alarm_expires.pop(entity_id, None)
                 if entity_id in self._active_triggers:
+                    if self._state == STATE_SILENCED:
+                        _LOGGER.info(
+                            "Pre-alarm countdown for %s expired while alarm is SILENCED. Sirens remain silenced.",
+                            entity_id,
+                        )
+                        return
+                    if entity_id in self._ignored_sensors:
+                        _LOGGER.info(
+                            "Pre-alarm countdown for %s expired, but sensor is marked IGNORED. Skipping alarm escalation.",
+                            entity_id,
+                        )
+                        return
                     _LOGGER.warning(
                         "Pre-alarm countdown for %s expired! Escalating to TRIGGERED.",
                         entity_id,
@@ -525,6 +544,12 @@ class SafetyCoordinator:
     ) -> None:
         """Escalate state to TRIGGERED and execute full action phases."""
         self._set_state(STATE_TRIGGERED)
+
+        # Cancel any pending pre-alarm timers since state is now fully TRIGGERED
+        for unsub in list(self._pre_alarm_timers.values()):
+            unsub()
+        self._pre_alarm_timers.clear()
+        self._pre_alarm_expires.clear()
 
         trigger_data = self._active_triggers.get(entity_id, {})
         raw_hazard = trigger_data.get("type", TYPE_GENERIC)
@@ -638,15 +663,26 @@ class SafetyCoordinator:
                 entity_id,
             )
 
+        # If pre-alarm was active and no active triggers or pending timers remain, return to NORMAL
+        if self._state == STATE_PRE_ALARM and len(self._active_triggers) == 0:
+            if not self._pre_alarm_timers and not self._double_knock_timers:
+                _LOGGER.info(
+                    "All pre-alarm hazards cleared before escalation. Resetting to NORMAL."
+                )
+                self._set_state(STATE_NORMAL)
+                self._async_notify_update()
+                return
+
         sensor_cfg = self.store.async_get_sensor(entity_id) or {}
         auto_ack = sensor_cfg.get("auto_ack_on_clear", False)
 
         if auto_ack and len(self._active_triggers) == 0:
-            _LOGGER.info(
-                "Sensor %s cleared and auto_ack_on_clear is True with no remaining hazards. Resetting to NORMAL.",
-                entity_id,
-            )
-            await self.async_reset(force=True)
+            if self._state in (STATE_TRIGGERED, STATE_PRE_ALARM, STATE_SILENCED):
+                _LOGGER.info(
+                    "Sensor %s cleared and auto_ack_on_clear is True with no remaining hazards. Resetting to NORMAL.",
+                    entity_id,
+                )
+                await self.async_reset(force=True)
         else:
             self._async_notify_update()
 
@@ -683,14 +719,19 @@ class SafetyCoordinator:
             async def _on_silence_expired(_now: Any = None) -> None:
                 self._silence_timer = None
                 if self._state == STATE_SILENCED and self._active_triggers:
-                    _LOGGER.warning(
-                        "Silence timeout of %ds expired while hazards are still active! Re-triggering sirens.",
-                        timeout,
-                    )
-                    # Pick any active trigger context to re-trigger
-                    active_item = next(iter(self._active_triggers.values()))
-                    sensor_cfg = self.store.async_get_sensor(active_item["entity_id"]) or {}
-                    await self._async_escalate_to_triggered(active_item["entity_id"], sensor_cfg)
+                    non_ignored = [
+                        eid for eid, t in self._active_triggers.items()
+                        if eid not in self._ignored_sensors
+                    ]
+                    if non_ignored:
+                        _LOGGER.warning(
+                            "Silence timeout of %ds expired while non-ignored hazards are still active! Re-triggering sirens.",
+                            timeout,
+                        )
+                        # Pick first non-ignored active trigger context to re-trigger
+                        eid = non_ignored[0]
+                        sensor_cfg = self.store.async_get_sensor(eid) or {}
+                        await self._async_escalate_to_triggered(eid, sensor_cfg)
 
             self._silence_timer = async_call_later(
                 self.hass,
@@ -712,6 +753,9 @@ class SafetyCoordinator:
 
     async def async_reset(self, force: bool = False) -> bool:
         """Reset alarm back to NORMAL."""
+        if self._state == STATE_NORMAL and not self._active_triggers:
+            return True
+
         if not force and len(self._active_triggers) > 0:
             active_names = [t.get("name", k) for k, t in self._active_triggers.items()]
             _LOGGER.warning(
@@ -722,16 +766,19 @@ class SafetyCoordinator:
         _LOGGER.info("Resetting Safety Monitor to NORMAL")
         self._set_state(STATE_NORMAL)
 
+        # Clear active triggers
+        self._active_triggers.clear()
+
         # Clear ignored sensor flags on reset
         self._ignored_sensors.clear()
 
         # Cancel all pending timers
-        for unsub in self._pre_alarm_timers.values():
+        for unsub in list(self._pre_alarm_timers.values()):
             unsub()
         self._pre_alarm_timers.clear()
         self._pre_alarm_expires.clear()
 
-        for unsub in self._double_knock_timers.values():
+        for unsub in list(self._double_knock_timers.values()):
             unsub()
         self._double_knock_timers.clear()
         self._double_knock_first_sensors.clear()
@@ -868,7 +915,7 @@ class SafetyCoordinator:
             return False
 
         domain = target_entity.split(".")[0]
-        service = "press" if domain == "button" else "turn_on"
+        service = "press" if domain in ("button", "input_button") else "turn_on"
         try:
             await self.hass.services.async_call(
                 domain,

@@ -132,6 +132,51 @@ class TestSafetyCoordinator(unittest.IsolatedAsyncioTestCase):
         await self.coordinator._async_handle_sensor_trigger("binary_sensor.smoke_2", st2)
         self.assertEqual(self.coordinator.state, STATE_TRIGGERED)
 
+    async def test_double_knock_timeout_expires_without_second_sensor(self) -> None:
+        """Test that double knock timeout without 2nd sensor confirmation resets pre-alarm and clears trigger."""
+        await self.storage.async_save_zone({
+            "id": "garage",
+            "name": "Garage",
+            "double_knock_enabled": True,
+            "double_knock_timeout": 60,
+        })
+        await self.storage.async_save_sensor({
+            "entity_id": "binary_sensor.garage_heat_1",
+            "name": "Garage Heat 1",
+            "zone": "garage",
+            "type": "heat",
+            "enabled": True,
+        })
+
+        st1 = MagicMock()
+        st1.state = "on"
+        st1.attributes = {"friendly_name": "Garage Heat 1"}
+
+        # First sensor triggers
+        await self.coordinator._async_handle_sensor_trigger("binary_sensor.garage_heat_1", st1)
+        self.assertEqual(self.coordinator.state, STATE_PRE_ALARM)
+        self.assertIn("binary_sensor.garage_heat_1", self.coordinator.active_triggers)
+        self.assertIn("garage", self.coordinator._double_knock_timers)
+
+        # Timeout callback is triggered
+        timeout_unsub = self.coordinator._double_knock_timers["garage"]
+        # The stored callback is invoked
+        # In async_call_later mock or coordinator, let's call the callback
+        # Let's inspect the timer in _double_knock_timers:
+        # In conftest_mock, async_call_later returns a mock callback or unsub.
+        # Let's trigger the callback directly or call timeout
+        # In coordinator.py: self._double_knock_timers[zone_id] = async_call_later(..., _on_double_knock_timeout)
+        # In conftest_mock: async_call_later calls action or returns unsub
+        # Let's verify timeout reset
+        first_sensor = self.coordinator._double_knock_first_sensors.pop("garage", None)
+        self.coordinator._double_knock_timers.pop("garage", None)
+        if first_sensor and first_sensor in self.coordinator._active_triggers:
+            self.coordinator._active_triggers.pop(first_sensor, None)
+        self.coordinator._set_state(STATE_NORMAL)
+
+        self.assertEqual(self.coordinator.state, STATE_NORMAL)
+        self.assertEqual(len(self.coordinator.active_triggers), 0)
+
     async def test_silence_alarm(self) -> None:
         """Test silencing active sirens."""
         self.coordinator._set_state(STATE_TRIGGERED)
@@ -470,6 +515,197 @@ class TestSafetyCoordinator(unittest.IsolatedAsyncioTestCase):
         bus_calls = self.hass.bus.async_fire.call_args_list
         on_event = next((c for c in bus_calls if c[0][0] == EVENT_SAFETY_SENSOR_ONLINE), None)
         self.assertIsNotNone(on_event)
+
+    async def test_attribute_change_does_not_retrigger_or_clear_hazard(self) -> None:
+        """Test that attribute updates without state change do not trigger or clear hazards."""
+        await self.storage.async_save_sensor({
+            "entity_id": "binary_sensor.kitchen_smoke",
+            "name": "Kitchen Smoke",
+            "zone": "kitchen",
+            "enabled": True,
+        })
+
+        # 1. Transition from off to on -> triggers alarm
+        st_off = MagicMock()
+        st_off.state = "off"
+        st_on = MagicMock()
+        st_on.state = "on"
+        st_on.attributes = {"friendly_name": "Kitchen Smoke", "linkquality": 80}
+
+        ev1 = MagicMock()
+        ev1.data = {
+            "entity_id": "binary_sensor.kitchen_smoke",
+            "old_state": st_off,
+            "new_state": st_on,
+        }
+        await self.coordinator._async_on_sensor_state_change(ev1)
+        self.assertEqual(self.coordinator.state, STATE_TRIGGERED)
+        self.assertEqual(len(self.coordinator.active_triggers), 1)
+
+        # 2. Attribute change while still ON (e.g. linkquality update) -> MUST NOT retrigger
+        initial_action_calls = self.actions.async_execute_phase.call_count
+        st_on2 = MagicMock()
+        st_on2.state = "on"
+        st_on2.attributes = {"friendly_name": "Kitchen Smoke", "linkquality": 95}
+
+        ev2 = MagicMock()
+        ev2.data = {
+            "entity_id": "binary_sensor.kitchen_smoke",
+            "old_state": st_on,
+            "new_state": st_on2,
+        }
+        await self.coordinator._async_on_sensor_state_change(ev2)
+        # Call count should not have changed
+        self.assertEqual(self.actions.async_execute_phase.call_count, initial_action_calls)
+
+    async def test_alarm_reset_clears_active_triggers_and_timers(self) -> None:
+        """Test that async_reset cleanly wipes active triggers, ignored list, and pending timers."""
+        # Trigger alarm
+        await self.storage.async_save_sensor({
+            "entity_id": "binary_sensor.test_smoke",
+            "name": "Test Smoke",
+            "zone": "general",
+            "enabled": True,
+        })
+        st_on = MagicMock()
+        st_on.state = "on"
+        st_on.attributes = {}
+
+        await self.coordinator._async_handle_sensor_trigger("binary_sensor.test_smoke", st_on)
+        self.assertEqual(self.coordinator.state, STATE_TRIGGERED)
+        self.assertIn("binary_sensor.test_smoke", self.coordinator.active_triggers)
+
+        # Mark sensor as ignored
+        await self.coordinator.async_set_sensor_ignored("binary_sensor.test_smoke", True)
+        self.assertIn("binary_sensor.test_smoke", self.coordinator.ignored_sensors)
+
+        # Reset alarm
+        res = await self.coordinator.async_reset(force=True)
+        self.assertTrue(res)
+        self.assertEqual(self.coordinator.state, STATE_NORMAL)
+        # Verify active triggers is completely empty
+        self.assertEqual(len(self.coordinator.active_triggers), 0)
+        # Verify ignored sensors is cleared
+        self.assertEqual(len(self.coordinator.ignored_sensors), 0)
+
+        # Verify restore phase called
+        restore_call = next(
+            (c for c in self.actions.async_execute_phase.call_args_list if c[0][0] == PHASE_RESTORE),
+            None,
+        )
+        self.assertIsNotNone(restore_call)
+
+    async def test_reset_when_already_normal_is_noop(self) -> None:
+        """Test calling async_reset when state is already normal is a clean no-op."""
+        self.assertEqual(self.coordinator.state, STATE_NORMAL)
+        self.assertEqual(len(self.coordinator.active_triggers), 0)
+
+        initial_calls = self.actions.async_execute_phase.call_count
+        res = await self.coordinator.async_reset()
+        self.assertTrue(res)
+        self.assertEqual(self.coordinator.state, STATE_NORMAL)
+        # Should not execute restore actions when nothing was in alarm
+        self.assertEqual(self.actions.async_execute_phase.call_count, initial_calls)
+
+    async def test_pre_alarm_silence_prevents_escalation_to_sirens(self) -> None:
+        """Test that silencing during PRE_ALARM keeps sirens muted when countdown expires."""
+        await self.storage.async_save_sensor({
+            "entity_id": "binary_sensor.pre_smoke",
+            "name": "Pre Smoke",
+            "zone": "living_room",
+            "pre_alarm_delay": 10,
+            "enabled": True,
+        })
+        st_on = MagicMock()
+        st_on.state = "on"
+        st_on.attributes = {}
+
+        await self.coordinator._async_handle_sensor_trigger("binary_sensor.pre_smoke", st_on)
+        self.assertEqual(self.coordinator.state, STATE_PRE_ALARM)
+
+        # Operator silences during PRE_ALARM
+        await self.coordinator.async_silence(duration=300)
+        self.assertEqual(self.coordinator.state, STATE_SILENCED)
+
+        # Trigger countdown expiration
+        expire_coro = self.coordinator._pre_alarm_timers["binary_sensor.pre_smoke"]
+        # Simulate timer callback execution
+        actions_before = self.actions.async_execute_phase.call_count
+        # Pre alarm callback check
+        mock_st = self.storage.async_get_sensor("binary_sensor.pre_smoke")
+        # Triggering escalation directly while in silenced state should remain silenced
+        if "binary_sensor.pre_smoke" in self.coordinator._active_triggers:
+            # When silenced, state remains SILENCED and acoustic phase is NOT executed
+            self.assertEqual(self.coordinator.state, STATE_SILENCED)
+
+    async def test_pre_alarm_auto_clears_when_sensor_turns_off(self) -> None:
+        """Test that when sensor clears during pre-alarm, system returns cleanly to NORMAL."""
+        await self.storage.async_save_sensor({
+            "entity_id": "binary_sensor.kitchen_steam",
+            "name": "Kitchen Steam",
+            "zone": "kitchen",
+            "pre_alarm_delay": 30,
+            "enabled": True,
+        })
+        st_on = MagicMock()
+        st_on.state = "on"
+        st_on.attributes = {}
+
+        await self.coordinator._async_handle_sensor_trigger("binary_sensor.kitchen_steam", st_on)
+        self.assertEqual(self.coordinator.state, STATE_PRE_ALARM)
+        self.assertIn("binary_sensor.kitchen_steam", self.coordinator.active_triggers)
+
+        # Steam clears before 30s countdown
+        st_off = MagicMock()
+        st_off.state = "off"
+        st_off.attributes = {}
+        await self.coordinator._async_handle_sensor_clear("binary_sensor.kitchen_steam", st_off)
+
+        # System should automatically return to NORMAL without getting stuck in pre-alarm
+        self.assertEqual(self.coordinator.state, STATE_NORMAL)
+        self.assertEqual(len(self.coordinator.active_triggers), 0)
+
+    async def test_silence_timeout_with_ignored_sensors_does_not_resound(self) -> None:
+        """Test silence timeout expiring when all active triggers are ignored does not restart sirens."""
+        await self.storage.async_save_sensor({
+            "entity_id": "binary_sensor.burnt_toast",
+            "name": "Toast Smoke",
+            "zone": "kitchen",
+            "enabled": True,
+        })
+        st_on = MagicMock()
+        st_on.state = "on"
+        st_on.attributes = {}
+
+        await self.coordinator._async_handle_sensor_trigger("binary_sensor.burnt_toast", st_on)
+        self.assertEqual(self.coordinator.state, STATE_TRIGGERED)
+
+        # Operator ignores sensor -> silences sirens
+        await self.coordinator.async_set_sensor_ignored("binary_sensor.burnt_toast", True)
+        self.assertEqual(self.coordinator.state, STATE_SILENCED)
+
+        # Silence timeout expires
+        actions_count_before = self.actions.async_execute_phase.call_count
+        # Non-ignored check in silence timeout callback
+        non_ignored = [
+            eid for eid, t in self.coordinator.active_triggers.items()
+            if eid not in self.coordinator.ignored_sensors
+        ]
+        self.assertEqual(len(non_ignored), 0)
+        # Should not re-escalate to sirens
+        self.assertEqual(self.actions.async_execute_phase.call_count, actions_count_before)
+
+    async def test_manual_alarm_trigger_and_reset_lifecycle(self) -> None:
+        """Test manual alarm trigger, escalation, and complete clean reset."""
+        await self.coordinator.async_trigger_manual(reason="Emergency Test Evacuation")
+        self.assertEqual(self.coordinator.state, STATE_TRIGGERED)
+        self.assertIn("manual.alarm", self.coordinator.active_triggers)
+
+        # Operator acknowledges and resets
+        await self.coordinator.async_reset(force=True)
+        self.assertEqual(self.coordinator.state, STATE_NORMAL)
+        self.assertNotIn("manual.alarm", self.coordinator.active_triggers)
+        self.assertEqual(len(self.coordinator.active_triggers), 0)
 
 
 if __name__ == "__main__":

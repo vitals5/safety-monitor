@@ -346,6 +346,42 @@ class ActionEngine:
                     _LOGGER.info("Turned off emergency light: %s", entity_id)
                 except Exception as err:
                     _LOGGER.debug("Could not turn off light %s: %s", entity_id, err)
+            elif service_raw.startswith("switch."):
+                try:
+                    await self.hass.services.async_call(
+                        "switch",
+                        "turn_off",
+                        {},
+                        target={"entity_id": entity_id},
+                        blocking=False,
+                    )
+                    _LOGGER.info("Turned off emergency switch: %s", entity_id)
+                except Exception as err:
+                    _LOGGER.debug("Could not turn off switch %s: %s", entity_id, err)
+            elif service_raw.startswith("media_player."):
+                try:
+                    await self.hass.services.async_call(
+                        "media_player",
+                        "media_stop",
+                        {},
+                        target={"entity_id": entity_id},
+                        blocking=False,
+                    )
+                    _LOGGER.info("Stopped emergency audio on media_player: %s", entity_id)
+                except Exception as err:
+                    _LOGGER.debug("Could not stop media_player %s: %s", entity_id, err)
+            elif service_raw.startswith("input_boolean."):
+                try:
+                    await self.hass.services.async_call(
+                        "input_boolean",
+                        "turn_off",
+                        {},
+                        target={"entity_id": entity_id},
+                        blocking=False,
+                    )
+                    _LOGGER.info("Turned off emergency input_boolean: %s", entity_id)
+                except Exception as err:
+                    _LOGGER.debug("Could not turn off input_boolean %s: %s", entity_id, err)
 
     def _build_test_context(self, action: dict[str, Any]) -> dict[str, Any]:
         """Build realistic localized example context data for action testing."""

@@ -437,6 +437,79 @@ class TestActionEngine(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Event: battery_low", payload["message"])
 
 
+    async def test_silence_turns_off_all_acoustic_optical_devices(self) -> None:
+        """Test that async_execute_silence turns off sirens, lights, switches, media players, and booleans."""
+        await self.storage.async_save_action({
+            "id": "act_siren",
+            "name": "Siren Alarm",
+            "phase": PHASE_ACOUSTIC_OPTICAL,
+            "service": "siren.turn_on",
+            "target": {"entity_id": "siren.alarm_horn"},
+            "enabled": True,
+        })
+        await self.storage.async_save_action({
+            "id": "act_light",
+            "name": "Red Light",
+            "phase": PHASE_ACOUSTIC_OPTICAL,
+            "service": "light.turn_on",
+            "target": {"entity_id": "light.beacon_red"},
+            "enabled": True,
+        })
+        await self.storage.async_save_action({
+            "id": "act_switch",
+            "name": "Buzzer Plug",
+            "phase": PHASE_ACOUSTIC_OPTICAL,
+            "service": "switch.turn_on",
+            "target": {"entity_id": "switch.plug_buzzer"},
+            "enabled": True,
+        })
+        await self.storage.async_save_action({
+            "id": "act_media",
+            "name": "TTS Audio Siren",
+            "phase": PHASE_ACOUSTIC_OPTICAL,
+            "service": "media_player.play_media",
+            "target": {"entity_id": "media_player.living_room_speaker"},
+            "enabled": True,
+        })
+        await self.storage.async_save_action({
+            "id": "act_boolean",
+            "name": "Alarm Flag",
+            "phase": PHASE_ACOUSTIC_OPTICAL,
+            "service": "input_boolean.turn_on",
+            "target": {"entity_id": "input_boolean.alarm_active"},
+            "enabled": True,
+        })
+
+        await self.engine.async_execute_silence()
+
+        calls = self.hass.services.async_call.call_args_list
+
+        # Check siren turned off
+        siren_call = next((c for c in calls if c[0][0] == "siren" and c[0][1] == "turn_off"), None)
+        self.assertIsNotNone(siren_call)
+        self.assertEqual(siren_call[1]["target"]["entity_id"], "siren.alarm_horn")
+
+        # Check light turned off
+        light_call = next((c for c in calls if c[0][0] == "light" and c[0][1] == "turn_off"), None)
+        self.assertIsNotNone(light_call)
+        self.assertEqual(light_call[1]["target"]["entity_id"], "light.beacon_red")
+
+        # Check switch turned off
+        switch_call = next((c for c in calls if c[0][0] == "switch" and c[0][1] == "turn_off"), None)
+        self.assertIsNotNone(switch_call)
+        self.assertEqual(switch_call[1]["target"]["entity_id"], "switch.plug_buzzer")
+
+        # Check media_player stopped
+        media_call = next((c for c in calls if c[0][0] == "media_player" and c[0][1] == "media_stop"), None)
+        self.assertIsNotNone(media_call)
+        self.assertEqual(media_call[1]["target"]["entity_id"], "media_player.living_room_speaker")
+
+        # Check input_boolean turned off
+        bool_call = next((c for c in calls if c[0][0] == "input_boolean" and c[0][1] == "turn_off"), None)
+        self.assertIsNotNone(bool_call)
+        self.assertEqual(bool_call[1]["target"]["entity_id"], "input_boolean.alarm_active")
+
+
 if __name__ == "__main__":
     unittest.main()
 
