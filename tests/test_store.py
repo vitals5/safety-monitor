@@ -133,13 +133,16 @@ class TestSafetyStorage(unittest.IsolatedAsyncioTestCase):
             "data": {},
             "enabled": True,
             "trigger_types": ["moisture"],
+            "repeat_interval": 45,
         }
         saved = await self.storage.async_save_action(action_data)
         self.assertEqual(saved["id"], "custom_action_test")
+        self.assertEqual(saved["repeat_interval"], 45)
 
         retrieved = self.storage.async_get_action("custom_action_test")
         self.assertIsNotNone(retrieved)
         self.assertEqual(retrieved["name"], "Test Action")
+        self.assertEqual(retrieved["repeat_interval"], 45)
 
         del_ok = await self.storage.async_delete_action("custom_action_test")
         self.assertTrue(del_ok)

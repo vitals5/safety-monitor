@@ -34,6 +34,7 @@ from .const import (
     PHASE_ACOUSTIC_OPTICAL,
     PHASE_CUTOFF,
     PHASE_NOTIFICATION,
+    PHASE_RESTORE,
     SIGNAL_SAFETY_MONITOR_STATE_CHANGED,
     SIGNAL_SAFETY_MONITOR_UPDATED,
     STATE_NORMAL,
@@ -70,6 +71,7 @@ class SafetyCoordinator:
         self._double_knock_first_sensors: dict[str, str] = {}
         self._silence_timer: CALLBACK_TYPE | None = None
         self._test_mode_timer: CALLBACK_TYPE | None = None
+        self._repeating_action_timers: dict[str, tuple[CALLBACK_TYPE, str]] = {}
 
         # State tracking listeners
         self._sensor_unsub: CALLBACK_TYPE | None = None
@@ -346,7 +348,64 @@ class SafetyCoordinator:
         # Phase 3: Acoustic & Optical (Sirens, Flashing Red Lights)
         await self.actions.async_execute_phase(PHASE_ACOUSTIC_OPTICAL, context, sensor_cfg)
 
+        # Start repeating action loop for actions with repeat_interval > 0
+        self._async_start_repeating_actions(context)
+
         self._async_notify_update()
+
+    def _cancel_repeating_actions(self, phases: list[str] | None = None) -> None:
+        """Cancel repeating action timers."""
+        to_remove = []
+        for aid, (unsub, phase) in self._repeating_action_timers.items():
+            if phases is None or phase in phases:
+                unsub()
+                to_remove.append(aid)
+        for aid in to_remove:
+            self._repeating_action_timers.pop(aid, None)
+
+    def _async_start_repeating_actions(self, context: dict[str, Any]) -> None:
+        """Schedule and run repeating actions while alarm is active."""
+        self._cancel_repeating_actions()
+        actions = self.store.async_get_actions()
+        hazard_type = context.get("hazard_type", "smoke")
+
+        for action in actions:
+            if not action.get("enabled", True):
+                continue
+            repeat_interval = int(action.get("repeat_interval", 0) or 0)
+            if repeat_interval <= 0:
+                continue
+            trigger_types = action.get("trigger_types", [])
+            if trigger_types and hazard_type not in trigger_types:
+                continue
+
+            aid = action.get("id")
+            phase = action.get("phase")
+
+            def _make_runner(act: dict[str, Any], intv: int, p: str):
+                async def _run_repeat(_now: Any = None) -> None:
+                    if self._state != STATE_TRIGGERED:
+                        self._cancel_repeating_actions()
+                        return
+                    # In test mode: don't repeat cutoffs or sirens
+                    settings = self.store.async_get_settings()
+                    if settings.get("test_mode") and p in (PHASE_CUTOFF, PHASE_ACOUSTIC_OPTICAL):
+                        return
+                    _LOGGER.info("Executing repeating action '%s' (every %ds)", act.get("name"), intv)
+                    await self.actions.async_call_single_action(act, context, blocking=False)
+                    if self._state == STATE_TRIGGERED:
+                        unsub = async_call_later(
+                            self.hass, intv, lambda now: self.hass.async_create_task(_run_repeat(now))
+                        )
+                        self._repeating_action_timers[act.get("id")] = (unsub, p)
+
+                return _run_repeat
+
+            runner = _make_runner(action, repeat_interval, phase)
+            unsub = async_call_later(
+                self.hass, repeat_interval, lambda now, r=runner: self.hass.async_create_task(r(now))
+            )
+            self._repeating_action_timers[aid] = (unsub, phase)
 
     async def _async_handle_sensor_clear(
         self, entity_id: str, state_obj: Any
@@ -380,6 +439,9 @@ class SafetyCoordinator:
 
         _LOGGER.info("Silencing Safety Monitor acoustic alarms")
         self._set_state(STATE_SILENCED)
+
+        # Stop repeating acoustic/optical actions
+        self._cancel_repeating_actions([PHASE_ACOUSTIC_OPTICAL])
 
         # Execute silence actions (stop sirens, restore lights)
         await self.actions.async_execute_silence()
@@ -450,8 +512,22 @@ class SafetyCoordinator:
             self._silence_timer()
             self._silence_timer = None
 
+        # Stop repeating actions
+        self._cancel_repeating_actions()
+
         # Stop any active sirens
         await self.actions.async_execute_silence()
+
+        # Phase 4: Restore / Nach-Alarm actions (e.g. lights off, push all clear)
+        context = {
+            "sensor_name": "Safety Monitor",
+            "entity_id": "safety_monitor",
+            "zone": "all",
+            "hazard_type": "all_clear",
+            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+            "state": STATE_NORMAL,
+        }
+        await self.actions.async_execute_phase(PHASE_RESTORE, context)
 
         # Bus event and history
         self.hass.bus.async_fire(EVENT_SAFETY_ALARM_RESET, {"timestamp": datetime.now(timezone.utc).isoformat()})

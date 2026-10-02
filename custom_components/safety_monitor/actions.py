@@ -14,6 +14,7 @@ from .const import (
     PHASE_ACOUSTIC_OPTICAL,
     PHASE_CUTOFF,
     PHASE_NOTIFICATION,
+    PHASE_RESTORE,
 )
 from .store import SafetyStorage
 
@@ -30,6 +31,7 @@ def _render_value(val: Any, hass: HomeAssistant, context: dict[str, Any]) -> Any
             except Exception as err:
                 _LOGGER.warning("Failed to render template '%s': %s", val, err)
                 # Fallback to simple replace
+                res = val
                 for k, v in context.items():
                     res = res.replace("{{" + f" {k} " + "}}", str(v)).replace("{{" + str(k) + "}}", str(v))
                 return res
@@ -112,7 +114,7 @@ class ActionEngine:
                 continue
 
             trigger_types = action.get("trigger_types", [])
-            if trigger_types and hazard_type not in trigger_types:
+            if trigger_types and hazard_type not in trigger_types and hazard_type != "all_clear":
                 continue
 
             # In test mode: skip physical cutoffs and acoustic sirens
@@ -131,18 +133,26 @@ class ActionEngine:
 
             # Execute the action
             action_id = action.get("id", "unknown")
-            await self._async_call_action(action, context)
+            await self._async_call_action(action, context, blocking=False)
             executed_actions.append(action_id)
 
         return executed_actions
 
+    async def async_call_single_action(
+        self, action: dict[str, Any], context: dict[str, Any], blocking: bool = False
+    ) -> bool:
+        """Call a single action."""
+        return await self._async_call_action(action, context, blocking=blocking)
+
     async def _async_call_action(
-        self, action: dict[str, Any], context: dict[str, Any]
+        self, action: dict[str, Any], context: dict[str, Any], blocking: bool = False
     ) -> bool:
         """Render and execute a single service call."""
         service_raw = action.get("service", "")
         if not service_raw or "." not in service_raw:
             _LOGGER.warning("Invalid action service format: %s", service_raw)
+            if blocking:
+                raise HomeAssistantError(f"Ungültiges Dienstformat: '{service_raw}'")
             return False
 
         domain, service = service_raw.split(".", 1)
@@ -153,15 +163,31 @@ class ActionEngine:
         rendered_data = _render_value(raw_data, self.hass, context)
 
         # Clean empty target keys
-        target = {k: v for k, v in rendered_target.items() if v}
+        target = {k: v for k, v in rendered_target.items() if v} if isinstance(rendered_target, dict) else {}
+
+        # Validate if target is required and missing
+        requires_target = domain in [
+            "valve", "switch", "light", "siren", "fan", "cover",
+            "lock", "climate", "media_player", "input_boolean"
+        ]
+        target_entities = target.get("entity_id") if isinstance(target, dict) else None
+        if isinstance(target_entities, list):
+            target_entities = [e for e in target_entities if e]
+        elif isinstance(target_entities, str):
+            target_entities = [target_entities] if target_entities.strip() else []
+
+        if blocking and requires_target and not target_entities:
+            _LOGGER.warning("Action '%s' (%s) skipped: No target entity configured", action.get("name"), service_raw)
+            raise HomeAssistantError(f"Keine Ziel-Entität für '{service_raw}' hinterlegt! Bitte Aktion bearbeiten und ein Ziel festlegen.")
+
 
         try:
             await self.hass.services.async_call(
                 domain,
                 service,
-                rendered_data,
+                rendered_data if isinstance(rendered_data, dict) else {},
                 target=target if target else None,
-                blocking=False,
+                blocking=blocking,
             )
             _LOGGER.info(
                 "Successfully dispatched safety action '%s' (%s.%s)",
@@ -178,6 +204,8 @@ class ActionEngine:
                 service,
                 err,
             )
+            if blocking:
+                raise
             return False
 
     async def async_execute_silence(self) -> None:
@@ -227,11 +255,11 @@ class ActionEngine:
             raise HomeAssistantError(f"Action '{action_id}' not found")
 
         ctx = context or {
-            "sensor_name": "Test Detector",
-            "entity_id": "binary_sensor.test_detector",
-            "zone": "Test Zone",
+            "sensor_name": "Test-Sensor (Manuell)",
+            "entity_id": "binary_sensor.test_sensor",
+            "zone": "Test-Zone",
             "hazard_type": "smoke",
             "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
             "state": "triggered",
         }
-        return await self._async_call_action(action, ctx)
+        return await self._async_call_action(action, ctx, blocking=True)

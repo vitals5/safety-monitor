@@ -298,6 +298,7 @@ class SafetyStorage:
             "service": action_data.get("service", ""),
             "target": dict(action_data.get("target", {})),
             "data": dict(action_data.get("data", {})),
+            "repeat_interval": int(action_data.get("repeat_interval", 0) or 0),
         }
 
         # Update in place if exists, else append

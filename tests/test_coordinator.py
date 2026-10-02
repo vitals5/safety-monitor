@@ -7,6 +7,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from tests import conftest_mock  # noqa: F401
 from custom_components.safety_monitor.actions import ActionEngine
 from custom_components.safety_monitor.const import (
+    PHASE_ACOUSTIC_OPTICAL,
+    PHASE_RESTORE,
     STATE_NORMAL,
     STATE_PRE_ALARM,
     STATE_SILENCED,
@@ -135,13 +137,58 @@ class TestSafetyCoordinator(unittest.IsolatedAsyncioTestCase):
         self.actions.async_execute_silence.assert_called_once()
 
     async def test_reset_alarm(self) -> None:
-        """Test resetting alarm back to normal."""
+        """Test resetting alarm back to normal triggers restore phase."""
         self.coordinator._set_state(STATE_TRIGGERED)
         self.coordinator._active_triggers["sensor.smoke"] = {"name": "Smoke"}
 
         ok = await self.coordinator.async_reset(force=True)
         self.assertTrue(ok)
         self.assertEqual(self.coordinator.state, STATE_NORMAL)
+        # Restore phase should be called with all_clear
+        restore_call = next(
+            (c for c in self.actions.async_execute_phase.call_args_list if c[0][0] == PHASE_RESTORE),
+            None,
+        )
+        self.assertIsNotNone(restore_call)
+        self.assertEqual(restore_call[0][1].get("hazard_type"), "all_clear")
+
+    async def test_repeating_actions_lifecycle(self) -> None:
+        """Test repeating actions are scheduled on alarm and cancelled on silence/reset."""
+        await self.storage.async_save_action({
+            "id": "repeat_siren_test",
+            "name": "Repeat Siren",
+            "phase": PHASE_ACOUSTIC_OPTICAL,
+            "service": "siren.turn_on",
+            "target": {"entity_id": "siren.test"},
+            "repeat_interval": 30,
+            "enabled": True,
+            "trigger_types": [TYPE_SMOKE],
+        })
+
+        # Trigger alarm
+        await self.storage.async_save_sensor({
+            "entity_id": "binary_sensor.smoke_rep",
+            "name": "Smoke Rep",
+            "zone": "kitchen",
+            "type": TYPE_SMOKE,
+            "pre_alarm_delay": 0,
+            "enabled": True,
+        })
+        st = MagicMock()
+        st.state = "on"
+        st.attributes = {"friendly_name": "Smoke Rep"}
+        await self.coordinator._async_handle_sensor_trigger("binary_sensor.smoke_rep", st)
+
+        self.assertEqual(self.coordinator.state, STATE_TRIGGERED)
+        self.assertIn("repeat_siren_test", self.coordinator._repeating_action_timers)
+
+        # Silence alarm should cancel acoustic repeating timer
+        await self.coordinator.async_silence(duration=300)
+        self.assertNotIn("repeat_siren_test", self.coordinator._repeating_action_timers)
+
+        # Reset alarm cancels everything
+        await self.coordinator.async_reset(force=True)
+        self.assertEqual(len(self.coordinator._repeating_action_timers), 0)
 
     async def test_auto_ack_on_clear(self) -> None:
         """Test auto-acknowledge reset when sensor returns to off."""

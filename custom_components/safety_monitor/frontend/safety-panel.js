@@ -64,6 +64,8 @@
       phaseNotificationDesc: "Kritische Push-Nachrichten mit Sound-Bypass an Smartphones.",
       phaseAcoustic: "Stufe 3: Akustisch & Optisch",
       phaseAcousticDesc: "Auslösen lauter Sirenen, rotes Notfall-Licht und TTS-Sprachausgabe.",
+      phaseRestore: "Stufe 4: Entwarnung & Rücksetzen (Nach Alarm)",
+      phaseRestoreDesc: "Wird nach Alarm-Rücksetzen ausgeführt: Rücksetzen normaler Beleuchtung, Lüftung wieder aktivieren oder 'Alles Sicher'-Entwarnungs-Push senden.",
       testAction: "Testen",
       edit: "Bearbeiten",
       delete: "Löschen",
@@ -102,6 +104,9 @@
       presetCritical: "🚨 Kritischer Notfall-Push",
       presetRedLight: "💡 Rotes Notlicht",
       presetSiren: "🔊 Sirene Lautstärke",
+      presetAllClear: "✅ Entwarnungs-Push",
+      actionRepeat: "Wiederholung während Alarm (Wiederholungsschleife):",
+      actionRepeatHelp: "Wiederholt die Aktion während eines aktiven Alarms alle X Sekunden (z. B. für Sirenen oder Push-Updates). 0 = nur einmalig.",
       validJson: "✅ Gültiges JSON",
       invalidJson: "❌ Ungültiges JSON",
       entityNotFoundInHA: "Nicht im HA-Zustandsregister gefunden",
@@ -162,6 +167,8 @@
       phaseNotificationDesc: "High-priority push notifications with alarm stream bypass to mobile apps.",
       phaseAcoustic: "Phase 3: Acoustic & Optical",
       phaseAcousticDesc: "Trigger loud sirens, flashing emergency red lighting, and TTS announcements.",
+      phaseRestore: "Phase 4: All-Clear & Restore (Post-Alarm)",
+      phaseRestoreDesc: "Executed upon alarm reset: Restoring normal lighting, restarting ventilation, or sending an all-clear notification.",
       testAction: "Test",
       edit: "Edit",
       delete: "Delete",
@@ -200,6 +207,9 @@
       presetCritical: "🚨 Critical Push Alarm",
       presetRedLight: "💡 Red Warning Light",
       presetSiren: "🔊 Siren Volume",
+      presetAllClear: "✅ All-Clear Push",
+      actionRepeat: "Repetition Loop during Alarm (seconds, 0 = once):",
+      actionRepeatHelp: "Repeats this action every X seconds while alarm is triggered (e.g. for sirens or push updates). 0 = execute once only.",
       validJson: "✅ Valid JSON",
       invalidJson: "❌ Invalid JSON",
       entityNotFoundInHA: "Not found in HA states registry",
@@ -310,6 +320,10 @@
     siren: JSON.stringify({
       tone: "alarm",
       volume_level: 1.0
+    }, null, 2),
+    all_clear: JSON.stringify({
+      title: "✅ Entwarnung: Gefahr beendet",
+      message: "Gefahr in Zone {{ zone }} wurde behoben. Safety Monitor wieder im Normalzustand."
     }, null, 2)
   };
 
@@ -1256,6 +1270,16 @@
             background-color: var(--primary-color, #0288d1);
             color: #ffffff !important;
           }
+          .btn-sm.action-test.test-success {
+            background-color: rgba(76, 175, 80, 0.15) !important;
+            color: #4caf50 !important;
+            border-color: #4caf50 !important;
+          }
+          .btn-sm.action-test.test-error {
+            background-color: rgba(244, 67, 54, 0.15) !important;
+            color: #f44336 !important;
+            border-color: #f44336 !important;
+          }
           .btn-sm.danger {
             background-color: rgba(211, 47, 47, 0.12);
             color: var(--error-color, #d32f2f) !important;
@@ -1329,6 +1353,54 @@
             font-size: 13px;
             color: var(--secondary-text-color, #757575);
             margin: 4px 0 12px 0;
+          }
+          .action-item-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--divider-color, rgba(127, 127, 127, 0.15));
+            flex-wrap: wrap;
+          }
+          .action-item-row:last-child {
+            border-bottom: none;
+          }
+          .action-item-info {
+            flex: 1 1 240px;
+            min-width: 0;
+            word-break: break-word;
+          }
+          .action-item-btns {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            align-items: center;
+            flex-shrink: 0;
+          }
+          @media (max-width: 600px) {
+            .action-item-row {
+              flex-direction: column;
+              align-items: flex-start;
+            }
+            .action-item-btns {
+              width: 100%;
+              justify-content: flex-start;
+              margin-top: 6px;
+            }
+          }
+          .repeat-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: rgba(33, 150, 243, 0.15);
+            color: #2196f3;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 7px;
+            border-radius: 6px;
+            margin-left: 6px;
+            vertical-align: middle;
           }
 
           /* Modal Dialog */
@@ -2020,25 +2092,31 @@
       const cutoffActions = actions.filter(a => a.phase === 'cutoff');
       const notifActions = actions.filter(a => a.phase === 'notification');
       const acousticActions = actions.filter(a => a.phase === 'acoustic_optical');
+      const restoreActions = actions.filter(a => a.phase === 'restore');
 
       const renderActionList = (list) => {
         if (list.length === 0) return '<p style="color: var(--secondary-text-color, #757575); font-size: 13px;">Keine Aktionen in dieser Phase konfiguriert.</p>';
-        return list.map(a => `
-          <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--divider-color, rgba(127, 127, 127, 0.15));">
-            <div>
-              <strong>${a.name}</strong> <span style="font-size: 12px; color: var(--secondary-text-color, #757575);">(${a.service})</span><br>
-              <small style="color: var(--secondary-text-color, #757575);">
-                Gefahrentypen: ${(a.trigger_types && a.trigger_types.length > 0) ? a.trigger_types.map(t => this._getTypeName(t)).join(', ') : 'Alle'}
-                ${(a.target && a.target.entity_id) ? ` · Ziel: <code>${Array.isArray(a.target.entity_id) ? a.target.entity_id.join(', ') : a.target.entity_id}</code>` : ''}
-              </small>
+        return list.map(a => {
+          const repeatBadge = (a.repeat_interval && a.repeat_interval > 0)
+            ? `<span class="repeat-badge" title="Wiederholung alle ${a.repeat_interval} Sekunden während Alarm">🔄 alle ${a.repeat_interval}s</span>`
+            : '';
+          return `
+            <div class="action-item-row">
+              <div class="action-item-info">
+                <strong>${a.name}</strong> <span style="font-size: 12px; color: var(--secondary-text-color, #757575);">(${a.service})</span>${repeatBadge}<br>
+                <small style="color: var(--secondary-text-color, #757575);">
+                  Gefahrentypen: ${(a.trigger_types && a.trigger_types.length > 0) ? a.trigger_types.map(t => this._getTypeName(t)).join(', ') : 'Alle'}
+                  ${(a.target && a.target.entity_id) ? ` · Ziel: <code>${Array.isArray(a.target.entity_id) ? a.target.entity_id.join(', ') : a.target.entity_id}</code>` : ''}
+                </small>
+              </div>
+              <div class="action-item-btns">
+                <button class="btn-sm action-test btn-test-action" data-action-id="${a.id}">⚡ ${this._t("testAction")}</button>
+                <button class="btn-sm btn-edit-action" data-action-id="${a.id}">${this._t("edit")}</button>
+                <button class="btn-sm danger btn-delete-action" data-action-id="${a.id}">${this._t("delete")}</button>
+              </div>
             </div>
-            <div style="display: flex; gap: 6px;">
-              <button class="btn-sm action-test btn-test-action" data-action-id="${a.id}">⚡ ${this._t("testAction")}</button>
-              <button class="btn-sm btn-edit-action" data-action-id="${a.id}">${this._t("edit")}</button>
-              <button class="btn-sm danger btn-delete-action" data-action-id="${a.id}">${this._t("delete")}</button>
-            </div>
-          </div>
-        `).join('');
+          `;
+        }).join('');
       };
 
       return `
@@ -2070,6 +2148,14 @@
             </div>
             <p class="phase-desc">${this._t("phaseAcousticDesc")}</p>
             ${renderActionList(acousticActions)}
+          </div>
+
+          <div class="phase-card">
+            <div class="phase-header">
+              <h4 class="phase-name">🔄 ${this._t("phaseRestore")}</h4>
+            </div>
+            <p class="phase-desc">${this._t("phaseRestoreDesc")}</p>
+            ${renderActionList(restoreActions)}
           </div>
         </div>
       `;
@@ -2276,9 +2362,37 @@
                   <option value="cutoff" ${a.phase === 'cutoff' ? 'selected' : ''}>🚪 Stufe 1: Notabschaltung (Cutoff)</option>
                   <option value="notification" ${a.phase === 'notification' ? 'selected' : ''}>📱 Stufe 2: Benachrichtigung</option>
                   <option value="acoustic_optical" ${a.phase === 'acoustic_optical' ? 'selected' : ''}>🚨 Stufe 3: Akustisch & Optisch</option>
+                  <option value="restore" ${a.phase === 'restore' ? 'selected' : ''}>🔄 ${this._t("phaseRestore")}</option>
                 </select>
                 <small style="color: var(--secondary-text-color, #757575); font-size: 11px; display: block; margin-top: 4px;">
-                  Stufe 1 steuert Notfall-Aktoren (z. B. Absperrventile, Lüftung aus). Stufe 2 sendet Push-Meldungen. Stufe 3 aktiviert Sirenen und Beleuchtung.
+                  Stufe 1: Notfall-Aktoren (z. B. Ventile zu). Stufe 2: Push-Meldungen. Stufe 3: Sirenen/Licht. Stufe 4: Nach Alarm (Entwarnung / Rücksetzen).
+                </small>
+              </div>
+
+              <!-- Repeat Loop -->
+              <div class="form-group">
+                <label class="form-label">${this._t("actionRepeat")}</label>
+                <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 6px;">
+                  <input
+                    type="number"
+                    class="form-control"
+                    id="modal-act-repeat"
+                    value="${a.repeat_interval || 0}"
+                    min="0"
+                    step="5"
+                    style="max-width: 140px;"
+                  >
+                  <span style="font-size: 13px; color: var(--secondary-text-color, #757575);">Sekunden (0 = einmalig)</span>
+                </div>
+                <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px;">
+                  <button type="button" class="btn-data-preset act-repeat-preset" data-repeat="0">0s (Einmalig)</button>
+                  <button type="button" class="btn-data-preset act-repeat-preset" data-repeat="30">30s</button>
+                  <button type="button" class="btn-data-preset act-repeat-preset" data-repeat="60">60s (1 Min)</button>
+                  <button type="button" class="btn-data-preset act-repeat-preset" data-repeat="120">120s (2 Min)</button>
+                  <button type="button" class="btn-data-preset act-repeat-preset" data-repeat="300">300s (5 Min)</button>
+                </div>
+                <small style="color: var(--secondary-text-color, #757575); font-size: 11px; display: block;">
+                  ${this._t("actionRepeatHelp")}
                 </small>
               </div>
 
@@ -2386,6 +2500,7 @@
                     <button type="button" class="btn-data-preset data-preset-btn" data-preset="critical">${this._t("presetCritical")}</button>
                     <button type="button" class="btn-data-preset data-preset-btn" data-preset="red_light">${this._t("presetRedLight")}</button>
                     <button type="button" class="btn-data-preset data-preset-btn" data-preset="siren">${this._t("presetSiren")}</button>
+                    <button type="button" class="btn-data-preset data-preset-btn" data-preset="all_clear">${this._t("presetAllClear")}</button>
                   </div>
                 </div>
 
@@ -2696,12 +2811,38 @@
 
       root.querySelectorAll('.btn-test-action').forEach(btn => {
         btn.addEventListener('click', async (e) => {
-          const aid = e.currentTarget.dataset.actionId;
+          const targetBtn = e.currentTarget;
+          const aid = targetBtn.dataset.actionId;
+          const origContent = targetBtn.innerHTML;
+
+          targetBtn.disabled = true;
+          targetBtn.innerHTML = '⏳ Testen...';
+          targetBtn.classList.remove('test-success', 'test-error');
+
           try {
-            await this._hass.callWS({ type: "safety_monitor/action/test", action_id: aid });
-            alert("Aktion erfolgreich ausgeführt!");
+            const res = await this._hass.callWS({ type: "safety_monitor/action/test", action_id: aid });
+            if (res && res.success === false) {
+              throw new Error(res.error || "Aktion fehlgeschlagen");
+            }
+            targetBtn.innerHTML = '✅ Erfolgreich';
+            targetBtn.classList.add('test-success');
+            setTimeout(() => {
+              targetBtn.innerHTML = origContent;
+              targetBtn.classList.remove('test-success');
+              targetBtn.disabled = false;
+            }, 2500);
           } catch (err) {
-            alert("Fehler beim Testen der Aktion: " + err.message);
+            const rawMsg = err?.message || err?.error || "Fehler aufgetreten";
+            const shortMsg = rawMsg.length > 26 ? rawMsg.slice(0, 23) + '...' : rawMsg;
+            targetBtn.innerHTML = `❌ ${shortMsg}`;
+            targetBtn.title = rawMsg;
+            targetBtn.classList.add('test-error');
+            setTimeout(() => {
+              targetBtn.innerHTML = origContent;
+              targetBtn.title = '';
+              targetBtn.classList.remove('test-error');
+              targetBtn.disabled = false;
+            }, 3500);
           }
         });
       });
@@ -2892,13 +3033,24 @@
         validateJson();
 
         // 2. Presets Buttons
-        root.querySelectorAll('.btn-data-preset').forEach(btn => {
+        root.querySelectorAll('.data-preset-btn').forEach(btn => {
           btn.addEventListener('click', (e) => {
             const key = e.currentTarget.dataset.preset;
             const val = ACTION_DATA_PRESETS[key];
             if (val !== undefined) {
               actDataTextarea.value = val;
               validateJson();
+            }
+          });
+        });
+
+        // Repeat Presets Buttons
+        root.querySelectorAll('.act-repeat-preset').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            const sec = e.currentTarget.dataset.repeat;
+            const repeatInput = root.querySelector('#modal-act-repeat');
+            if (repeatInput && sec !== undefined) {
+              repeatInput.value = sec;
             }
           });
         });
@@ -3107,6 +3259,7 @@
           const phase = root.querySelector('#modal-act-phase').value;
           const service = root.querySelector('#modal-act-service').value.trim();
           const targetRaw = root.querySelector('#modal-act-target').value.trim();
+          const repeatInterval = parseInt(root.querySelector('#modal-act-repeat')?.value, 10) || 0;
           let dataObj = {};
           try {
             dataObj = JSON.parse(root.querySelector('#modal-act-data').value || "{}");
@@ -3134,6 +3287,7 @@
                 service: service,
                 target: target,
                 data: dataObj,
+                repeat_interval: repeatInterval,
                 enabled: true,
                 trigger_types: triggerTypes,
               }

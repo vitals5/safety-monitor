@@ -10,9 +10,11 @@ from custom_components.safety_monitor.const import (
     PHASE_ACOUSTIC_OPTICAL,
     PHASE_CUTOFF,
     PHASE_NOTIFICATION,
+    PHASE_RESTORE,
     TYPE_MOISTURE,
     TYPE_SMOKE,
 )
+from homeassistant.exceptions import HomeAssistantError
 from custom_components.safety_monitor.store import SafetyStorage
 
 
@@ -151,6 +153,50 @@ class TestActionEngine(unittest.IsolatedAsyncioTestCase):
         res = await self.engine.async_test_action("my_single_action")
         self.assertTrue(res)
 
+    async def test_manual_test_missing_target_raises(self) -> None:
+        """Test manual testing of an action without target entity raises HomeAssistantError."""
+        await self.storage.async_save_action({
+            "id": "action_no_target",
+            "name": "Targetless Siren",
+            "phase": PHASE_ACOUSTIC_OPTICAL,
+            "service": "siren.turn_on",
+            "target": {"entity_id": []},
+            "data": {},
+            "enabled": True,
+            "trigger_types": [TYPE_SMOKE],
+        })
+
+        with self.assertRaises(HomeAssistantError) as ctx:
+            await self.engine.async_test_action("action_no_target")
+        self.assertIn("Keine Ziel-Entität", str(ctx.exception))
+
+    async def test_execute_restore_phase(self) -> None:
+        """Test executing restore phase triggers restore actions for all_clear context."""
+        await self.storage.async_save_action({
+            "id": "action_restore_lights",
+            "name": "Restore Lights Off",
+            "phase": PHASE_RESTORE,
+            "service": "light.turn_off",
+            "target": {"entity_id": "light.emergency"},
+            "data": {},
+            "enabled": True,
+            "trigger_types": [TYPE_SMOKE],
+        })
+
+        context = {
+            "hazard_type": "all_clear",
+            "sensor_name": "Safety Monitor",
+            "zone": "all",
+        }
+        executed = await self.engine.async_execute_phase(PHASE_RESTORE, context)
+        self.assertIn("action_restore_lights", executed)
+
+        calls = self.hass.services.async_call.call_args_list
+        restore_call = next((c for c in calls if c[0][0] == "light" and c[0][1] == "turn_off"), None)
+        self.assertIsNotNone(restore_call)
+        self.assertEqual(restore_call[1].get("target"), {"entity_id": "light.emergency"})
+
 
 if __name__ == "__main__":
     unittest.main()
+

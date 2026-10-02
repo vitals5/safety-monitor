@@ -307,8 +307,11 @@ async def ws_test_action(
         connection.send_error(msg["id"], "not_found", "Safety Monitor not initialized")
         return
 
-    success = await coordinator.actions.async_test_action(msg["action_id"])
-    connection.send_result(msg["id"], {"success": success})
+    try:
+        success = await coordinator.actions.async_test_action(msg["action_id"])
+        connection.send_result(msg["id"], {"success": bool(success)})
+    except Exception as err:
+        connection.send_result(msg["id"], {"success": False, "error": str(err)})
 
 
 @websocket_api.websocket_command(
