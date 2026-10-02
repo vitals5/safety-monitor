@@ -105,6 +105,7 @@
       presetRedLight: "💡 Rotes Notlicht",
       presetSiren: "🔊 Sirene Lautstärke",
       presetAllClear: "✅ Entwarnungs-Push",
+      presetScript: "📜 Skript-Variablen",
       actionRepeat: "Wiederholung während Alarm (Wiederholungsschleife):",
       actionRepeatHelp: "Wiederholt die Aktion während eines aktiven Alarms alle X Sekunden (z. B. für Sirenen oder Push-Updates). 0 = nur einmalig.",
       validJson: "✅ Gültiges JSON",
@@ -208,6 +209,7 @@
       presetRedLight: "💡 Red Warning Light",
       presetSiren: "🔊 Siren Volume",
       presetAllClear: "✅ All-Clear Push",
+      presetScript: "📜 Script Variables",
       actionRepeat: "Repetition Loop during Alarm (seconds, 0 = once):",
       actionRepeatHelp: "Repeats this action every X seconds while alarm is triggered (e.g. for sirens or push updates). 0 = execute once only.",
       validJson: "✅ Valid JSON",
@@ -324,6 +326,11 @@
     all_clear: JSON.stringify({
       title: "✅ Entwarnung: Gefahr beendet",
       message: "Gefahr in Zone {{ zone }} wurde behoben. Safety Monitor wieder im Normalzustand."
+    }, null, 2),
+    script: JSON.stringify({
+      variables: {
+        text: "Achtung: {{ hazard_type }} erkannt durch {{ sensor_name }} in Zone {{ zone }}!"
+      }
     }, null, 2)
   };
 
@@ -2539,6 +2546,7 @@
                     <button type="button" class="btn-data-preset data-preset-btn" data-preset="red_light">${this._t("presetRedLight")}</button>
                     <button type="button" class="btn-data-preset data-preset-btn" data-preset="siren">${this._t("presetSiren")}</button>
                     <button type="button" class="btn-data-preset data-preset-btn" data-preset="all_clear">${this._t("presetAllClear")}</button>
+                    <button type="button" class="btn-data-preset data-preset-btn" data-preset="script">${this._t("presetScript")}</button>
                   </div>
                 </div>
 

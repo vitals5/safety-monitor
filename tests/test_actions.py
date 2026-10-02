@@ -309,8 +309,55 @@ class TestActionEngine(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Entwarnung", msg)
         self.assertIn("normal", msg)
 
+    async def test_script_turn_on_auto_wraps_variables(self) -> None:
+        """Test script.turn_on automatically wraps flat parameters under variables dict."""
+        action_dict = {
+            "name": "Script Call via turn_on",
+            "phase": PHASE_NOTIFICATION,
+            "service": "script.turn_on",
+            "target": {"entity_id": ["script.notfall_ansage"]},
+            "data": {
+                "text": "Achtung: {{ hazard_type }} in {{ zone }}!",
+            },
+            "trigger_types": [TYPE_SMOKE],
+        }
+        res = await self.engine.async_test_action_dict(action_dict)
+        self.assertTrue(res)
+
+        calls = self.hass.services.async_call.call_args_list
+        script_call = next((c for c in reversed(calls) if c[0][0] == "script" and c[0][1] == "turn_on"), None)
+        self.assertIsNotNone(script_call)
+        call_data = script_call[0][2]
+        self.assertIn("variables", call_data)
+        self.assertIn("text", call_data["variables"])
+        self.assertIn("Rauch", call_data["variables"]["text"])
+        self.assertEqual(script_call[1].get("target"), {"entity_id": ["script.notfall_ansage"]})
+
+    async def test_direct_script_call_suppresses_target(self) -> None:
+        """Test calling direct script service suppresses target to avoid voluptuous errors."""
+        action_dict = {
+            "name": "Direct Script Call",
+            "phase": PHASE_NOTIFICATION,
+            "service": "script.notfall_ansage",
+            "target": {"entity_id": ["script.notfall_ansage"]},
+            "data": {
+                "text": "Achtung: {{ hazard_type }} in {{ zone }}!",
+            },
+            "trigger_types": [TYPE_SMOKE],
+        }
+        res = await self.engine.async_test_action_dict(action_dict)
+        self.assertTrue(res)
+
+        calls = self.hass.services.async_call.call_args_list
+        script_call = next((c for c in reversed(calls) if c[0][0] == "script" and c[0][1] == "notfall_ansage"), None)
+        self.assertIsNotNone(script_call)
+        # Direct script services in HA do not take target
+        self.assertIsNone(script_call[1].get("target"))
+        self.assertIn("Rauch", script_call[0][2]["text"])
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
 

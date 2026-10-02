@@ -257,6 +257,18 @@ class ActionEngine:
             raise HomeAssistantError(f"Keine Ziel-Entität für '{service_raw}' hinterlegt! Bitte Aktion bearbeiten und ein Ziel festlegen.")
 
 
+        # Smart adaptation for script calls
+        if domain == "script":
+            if service == "turn_on":
+                # script.turn_on expects parameters to be inside "variables": { ... }
+                if isinstance(rendered_data, dict) and rendered_data and "variables" not in rendered_data:
+                    rendered_data = {"variables": rendered_data}
+            elif service not in ("turn_off", "toggle", "reload"):
+                # Direct script service call (e.g. script.my_script).
+                # In Home Assistant, direct script services do not accept a 'target' parameter.
+                # Passing target causes a 'not a valid option at target' validation error.
+                target = {}
+
         try:
             await self.hass.services.async_call(
                 domain,
