@@ -26,6 +26,7 @@
       statusTesting: "Test- & Wartungsmodus",
       statusTestingDesc: "Wartungsmodus aktiv: Sirenen und Notfall-Abschaltungen sind vorübergehend unterdrückt.",
       btnSilence: "Sirenen stummschalten",
+      btnSilenceAgain: "Erneut stummschalten",
       btnReset: "Quittieren / Zurücksetzen",
       btnTestMode: "Test-Modus",
       btnExitTestMode: "Test-Modus beenden",
@@ -147,6 +148,7 @@
       statusTesting: "Test & Maintenance Mode",
       statusTestingDesc: "Maintenance mode active: External sirens and emergency shutoffs are suppressed.",
       btnSilence: "Silence Sirens",
+      btnSilenceAgain: "Silence Again",
       btnReset: "Acknowledge / Reset",
       btnTestMode: "Test Mode",
       btnExitTestMode: "Exit Test Mode",
@@ -502,20 +504,50 @@
     }
 
     async _silenceAlarm() {
+      const root = this.shadowRoot;
+      const btn = root ? root.querySelector('#btn-silence') : null;
+      let orig = "";
+      if (btn) {
+        orig = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Stummschalten...';
+      }
       try {
         await this._hass.callWS({ type: "safety_monitor/action/silence" });
+        if (btn) btn.innerHTML = '✅ Stumm';
         await this._loadData();
       } catch (err) {
-        alert("Error silencing alarm: " + err.message);
+        if (btn) {
+          btn.innerHTML = '❌ Fehler';
+          setTimeout(() => {
+            btn.innerHTML = orig;
+            btn.disabled = false;
+          }, 2500);
+        }
       }
     }
 
     async _resetAlarm() {
+      const root = this.shadowRoot;
+      const btn = root ? root.querySelector('#btn-reset') : null;
+      let orig = "";
+      if (btn) {
+        orig = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Zurücksetzen...';
+      }
       try {
         await this._hass.callWS({ type: "safety_monitor/action/reset", force: true });
+        if (btn) btn.innerHTML = '✅ Zurückgesetzt';
         await this._loadData();
       } catch (err) {
-        alert("Error resetting alarm: " + err.message);
+        if (btn) {
+          btn.innerHTML = '❌ Fehler';
+          setTimeout(() => {
+            btn.innerHTML = orig;
+            btn.disabled = false;
+          }, 2500);
+        }
       }
     }
 
@@ -1000,6 +1032,21 @@
           .btn-ctl.danger:hover {
             background: #d32f2f;
             color: #ffffff !important;
+          }
+          .btn-ctl.silence-highlight {
+            background: linear-gradient(135deg, #e65100 0%, #f57c00 100%);
+            border-color: #ffe082;
+            color: #ffffff !important;
+            box-shadow: 0 0 16px rgba(255, 152, 0, 0.6);
+            animation: pulse-silence 2.2s infinite ease-in-out;
+          }
+          .btn-ctl.silence-highlight:hover {
+            background: linear-gradient(135deg, #f57c00 0%, #ff9800 100%);
+            box-shadow: 0 0 20px rgba(255, 152, 0, 0.9);
+          }
+          @keyframes pulse-silence {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.04); }
           }
 
           /* Cards */
@@ -1833,7 +1880,9 @@
             </div>
             <div class="status-controls">
               ${(state === 'triggered' || state === 'pre_alarm') ? `
-                <button class="btn-ctl" id="btn-silence">🔕 ${this._t("btnSilence")}</button>
+                <button class="btn-ctl silence-highlight" id="btn-silence">🔕 ${this._t("btnSilence")}</button>
+              ` : (state === 'silenced' && activeTriggers.length > 0) ? `
+                <button class="btn-ctl" id="btn-silence">🔕 ${this._t("btnSilenceAgain")}</button>
               ` : ''}
               ${state !== 'normal' ? `
                 <button class="btn-ctl" id="btn-reset">🔄 ${this._t("btnReset")}</button>
@@ -1868,11 +1917,16 @@
 
         <!-- Active Hazards List -->
         <div class="card">
-          <div class="card-header">
+          <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
             <h3 class="card-title">⚠️ ${this._t("activeHazardsTitle")} (${activeTriggers.length})</h3>
           </div>
           ${activeTriggers.length === 0 ? `
-            <p style="color: var(--secondary-text-color, #757575); margin: 0;">${this._t("noActiveHazards")}</p>
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+              <p style="color: var(--secondary-text-color, #757575); margin: 0;">${this._t("noActiveHazards")}</p>
+              <button class="btn-sm" id="btn-goto-sensors" style="cursor: pointer;">
+                🔍 Melder-Übersicht &amp; Tests anzeigen
+              </button>
+            </div>
           ` : `
             <div class="table-responsive">
               <table>
@@ -2958,6 +3012,14 @@
 
       const btnManualTrigger = root.querySelector('#btn-manual-trigger');
       if (btnManualTrigger) btnManualTrigger.addEventListener('click', () => this._manualTrigger());
+
+      const btnGotoSensors = root.querySelector('#btn-goto-sensors');
+      if (btnGotoSensors) {
+        btnGotoSensors.addEventListener('click', () => {
+          this._activeTab = 'sensors';
+          this._render();
+        });
+      }
 
       // Active Hazard Row Actions (Silence device & Ignore sensor)
       root.querySelectorAll('.btn-silence-hazard').forEach(btn => {

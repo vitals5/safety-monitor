@@ -136,6 +136,11 @@ class TestSafetyCoordinator(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.coordinator.state, STATE_SILENCED)
         self.actions.async_execute_silence.assert_called_once()
 
+        # Re-silencing while already silenced should succeed and execute silence again
+        ok_again = await self.coordinator.async_silence(duration=600)
+        self.assertTrue(ok_again)
+        self.assertEqual(self.coordinator.state, STATE_SILENCED)
+
     async def test_reset_alarm(self) -> None:
         """Test resetting alarm back to normal triggers restore phase."""
         self.coordinator._set_state(STATE_TRIGGERED)

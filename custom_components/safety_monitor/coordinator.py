@@ -601,7 +601,7 @@ class SafetyCoordinator:
 
     async def async_silence(self, duration: int | None = None) -> bool:
         """Silence active acoustic/optical alarms."""
-        if self._state not in (STATE_TRIGGERED, STATE_PRE_ALARM):
+        if self._state not in (STATE_TRIGGERED, STATE_PRE_ALARM, STATE_SILENCED):
             _LOGGER.info("Cannot silence alarm when state is '%s'", self._state)
             return False
 
