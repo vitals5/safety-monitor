@@ -82,11 +82,29 @@
       autoAckHelp: "Setzt Alarm automatisch zurück, sobald der Sensor wieder OFF meldet.",
       linkedShutoffs: "Verknüpfte Notfall-Aktoren (z. B. valve.hauptwasser, fan.lueftung):",
       preAlarmDelaySec: "Voralarm-Verzögerung (Sekunden, 0 = sofort):",
-      actionService: "Home Assistant Dienst (z. B. valve.close_valve):",
-      actionTarget: "Ziel-Entität (z. B. valve.hauptwasser):",
-      actionPayload: "Dienst-Daten (JSON mit {{ sensor_name }}, {{ zone }}):",
+      actionService: "Home Assistant Dienst:",
+      actionTarget: "Ziel-Entität:",
+      actionPayload: "Dienst-Daten (Service Payload):",
       actionTriggerTypes: "Auslösen bei folgenden Gefahrentypen:",
       toggleMenu: "Home Assistant Seitenmenü öffnen / schließen",
+      targetPlaceholder: "z. B. valve.hauptwasser, siren.alarm",
+      targetHelp: "Tippe, um Home Assistant Entitäten zu suchen (Ventile, Sirenen, Schalter, Lichter, Notify etc.).",
+      targetPreviewTitle: "Vorschau der ausgewählten Ziel-Entität(en):",
+      serviceSelectLabel: "Mögliche Dienste für Ziel-Entität:",
+      serviceCustomOption: "✏️ Manuelle Eingabe / Anderer Dienst...",
+      serviceHelp: "Wähle oben einen Dienst passend zur Entität oder tippe manuell (z. B. valve.close_valve).",
+      payloadHelpTitle: "Format-Hinweis (Service Data)",
+      payloadHelpDesc: "Eingabe als JSON-Objekt { \"schlüssel\": \"wert\" }. Bei reinen Ein-/Ausschaltbefehlen (z. B. valve.close_valve, fan.turn_off) sind keine Daten nötig (einfach {} belassen).",
+      presetsTitle: "Schnell-Vorlagen:",
+      variablesTitle: "Dynamische Platzhalter (Klick zum Einfügen):",
+      presetEmpty: "🔘 Leer ({})",
+      presetNotify: "📱 Push-Meldung",
+      presetCritical: "🚨 Kritischer Notfall-Push",
+      presetRedLight: "💡 Rotes Notlicht",
+      presetSiren: "🔊 Sirene Lautstärke",
+      validJson: "✅ Gültiges JSON",
+      invalidJson: "❌ Ungültiges JSON",
+      entityNotFoundInHA: "Nicht im HA-Zustandsregister gefunden",
     },
     en: {
       appName: "Safety Monitor",
@@ -162,12 +180,118 @@
       autoAckHelp: "Automatically reset alarm once the sensor returns to OFF state.",
       linkedShutoffs: "Linked Shutoff Entities (e.g. valve.main_water, fan.ventilation):",
       preAlarmDelaySec: "Pre-alarm delay (seconds, 0 = instant):",
-      actionService: "Home Assistant Service (e.g. valve.close_valve):",
-      actionTarget: "Target Entity (e.g. valve.main_water):",
-      actionPayload: "Service Data (JSON with {{ sensor_name }}, {{ zone }}):",
+      actionService: "Home Assistant Service:",
+      actionTarget: "Target Entity:",
+      actionPayload: "Service Data (Payload):",
       actionTriggerTypes: "Trigger for following hazard types:",
       toggleMenu: "Toggle Home Assistant sidebar menu",
+      targetPlaceholder: "e.g. valve.main_water, siren.alarm",
+      targetHelp: "Type to search Home Assistant entities (valves, sirens, switches, lights, notify, etc.).",
+      targetPreviewTitle: "Preview of target entity/entities:",
+      serviceSelectLabel: "Available services for target entity:",
+      serviceCustomOption: "✏️ Custom / Manual Service...",
+      serviceHelp: "Select a service matching the entity above or enter manually (e.g. valve.close_valve).",
+      payloadHelpTitle: "Format guide (Service Data)",
+      payloadHelpDesc: "Enter as JSON object { \"key\": \"value\" }. For standard valves and switches (e.g. valve.close_valve, fan.turn_off), no data is needed (leave as {}).",
+      presetsTitle: "Quick presets:",
+      variablesTitle: "Dynamic placeholders (click to insert):",
+      presetEmpty: "🔘 Empty ({})",
+      presetNotify: "📱 Push Notification",
+      presetCritical: "🚨 Critical Push Alarm",
+      presetRedLight: "💡 Red Warning Light",
+      presetSiren: "🔊 Siren Volume",
+      validJson: "✅ Valid JSON",
+      invalidJson: "❌ Invalid JSON",
+      entityNotFoundInHA: "Not found in HA states registry",
     }
+  };
+
+  const STANDARD_SERVICES = {
+    valve: [
+      { service: "valve.close_valve", label: "Ventil schließen (Notabschaltung)", icon: "🚪", recommended: true },
+      { service: "valve.open_valve", label: "Ventil öffnen", icon: "💧" },
+      { service: "valve.toggle", label: "Ventil umschalten", icon: "🔄" },
+      { service: "homeassistant.turn_off", label: "Gerät ausschalten", icon: "🔌" },
+    ],
+    switch: [
+      { service: "switch.turn_off", label: "Ausschalten (Strom trennen)", icon: "🔌", recommended: true },
+      { service: "switch.turn_on", label: "Einschalten", icon: "⚡" },
+      { service: "switch.toggle", label: "Umschalten", icon: "🔄" },
+    ],
+    fan: [
+      { service: "fan.turn_off", label: "Lüfter ausschalten (Rauchstopp)", icon: "🌀", recommended: true },
+      { service: "fan.turn_on", label: "Lüfter einschalten", icon: "💨" },
+    ],
+    cover: [
+      { service: "cover.open_cover", label: "Rollladen öffnen (Fluchtweg)", icon: "🪟", recommended: true },
+      { service: "cover.close_cover", label: "Rollladen schließen", icon: "🔒" },
+      { service: "cover.stop_cover", label: "Rollladen stoppen", icon: "⏹️" },
+    ],
+    siren: [
+      { service: "siren.turn_on", label: "Sirene einschalten (Alarm)", icon: "🚨", recommended: true },
+      { service: "siren.turn_off", label: "Sirene ausschalten", icon: "🔕" },
+      { service: "siren.toggle", label: "Sirene umschalten", icon: "🔄" },
+    ],
+    light: [
+      { service: "light.turn_on", label: "Licht einschalten (Notbeleuchtung/Rot)", icon: "💡", recommended: true },
+      { service: "light.turn_off", label: "Licht ausschalten", icon: "🌑" },
+      { service: "light.toggle", label: "Licht umschalten", icon: "🔄" },
+    ],
+    notify: [
+      { service: "notify.notify", label: "Standard Push-Benachrichtigung", icon: "📱", recommended: true },
+      { service: "notify.persistent_notification", label: "Dauerhafte Benachrichtigung in HA", icon: "📌" },
+    ],
+    media_player: [
+      { service: "media_player.play_media", label: "Audio-/Warnton abspielen", icon: "🔊", recommended: true },
+      { service: "media_player.volume_set", label: "Lautstärke setzen", icon: "📢" },
+      { service: "media_player.turn_on", label: "Player einschalten", icon: "▶️" },
+    ],
+    lock: [
+      { service: "lock.unlock", label: "Schloss entriegeln (Fluchtweg)", icon: "🔓", recommended: true },
+      { service: "lock.lock", label: "Schloss verriegeln", icon: "🔒" },
+    ],
+    climate: [
+      { service: "climate.turn_off", label: "Heizung/Klima ausschalten", icon: "❄️", recommended: true },
+    ],
+    script: [
+      { service: "script.turn_on", label: "Notfall-Skript ausführen", icon: "📜", recommended: true },
+    ],
+    scene: [
+      { service: "scene.turn_on", label: "Notfall-Szene aktivieren", icon: "🎬", recommended: true },
+    ],
+    homeassistant: [
+      { service: "homeassistant.turn_off", label: "Ausschalten", icon: "🔌" },
+      { service: "homeassistant.turn_on", label: "Einschalten", icon: "⚡" },
+    ]
+  };
+
+  const ACTION_DATA_PRESETS = {
+    empty: "{}",
+    notify: JSON.stringify({
+      title: "🚨 Safety Monitor Alarm",
+      message: "Achtung: {{ hazard_type }} erkannt durch {{ sensor_name }} in Zone {{ zone }}!"
+    }, null, 2),
+    critical: JSON.stringify({
+      title: "🚨 KRITISCHER NOTFALL-ALARM",
+      message: "Akute Gefahr! {{ hazard_type }} in Zone {{ zone }}! Sofort prüfen oder evakuieren.",
+      data: {
+        push: {
+          sound: {
+            name: "default",
+            critical: 1,
+            volume: 1.0
+          }
+        }
+      }
+    }, null, 2),
+    red_light: JSON.stringify({
+      rgb_color: [255, 0, 0],
+      brightness: 255
+    }, null, 2),
+    siren: JSON.stringify({
+      tone: "alarm",
+      volume_level: 1.0
+    }, null, 2)
   };
 
   class SafetyMonitorPanel extends HTMLElement {
@@ -357,6 +481,145 @@
         case "heat": return this._t("typeHeat");
         default: return this._t("typeGeneric");
       }
+    }
+
+    _getDomainIcon(domain) {
+      switch (domain) {
+        case "valve": return "💧";
+        case "switch": return "🔌";
+        case "light": return "💡";
+        case "siren": return "🚨";
+        case "cover": return "🪟";
+        case "fan": return "🌀";
+        case "notify": return "📱";
+        case "media_player": return "🔊";
+        case "lock": return "🔓";
+        case "climate": return "❄️";
+        case "script": return "📜";
+        case "automation": return "⚙️";
+        case "scene": return "🎬";
+        default: return "⚡";
+      }
+    }
+
+    _formatStateText(domain, state) {
+      if (!state) return "Unbekannt";
+      const s = String(state).toLowerCase();
+      if (s === "open") return "Offen";
+      if (s === "closed") return "Geschlossen";
+      if (s === "on") return "Aktiv / Ein";
+      if (s === "off") return "Aus";
+      if (s === "unlocked") return "Entriegelt";
+      if (s === "locked") return "Verriegelt";
+      if (s === "unavailable") return "Nicht verfügbar";
+      if (s === "unknown") return "Unbekannt";
+      return state;
+    }
+
+    _getServicesForDomain(domain) {
+      const services = [];
+      const seen = new Set();
+
+      // 1. Check STANDARD_SERVICES first
+      const std = (STANDARD_SERVICES && STANDARD_SERVICES[domain]) || [];
+      std.forEach(s => {
+        services.push(s);
+        seen.add(s.service);
+      });
+
+      // 2. Discover dynamically from Home Assistant services registry
+      if (this._hass && this._hass.services && domain) {
+        const domServices = this._hass.services[domain];
+        if (domServices && typeof domServices === 'object') {
+          Object.keys(domServices).forEach(srvName => {
+            const fullSrv = `${domain}.${srvName}`;
+            if (!seen.has(fullSrv)) {
+              seen.add(fullSrv);
+              const desc = (domServices[srvName] && domServices[srvName].name) || srvName;
+              services.push({
+                service: fullSrv,
+                label: desc,
+                icon: this._getDomainIcon(domain),
+              });
+            }
+          });
+        }
+      }
+
+      // If domain is empty or no services found, provide general emergency services
+      if (services.length === 0) {
+        [
+          { service: "valve.close_valve", label: "Ventil schließen (Notabschaltung)", icon: "🚪", recommended: true },
+          { service: "fan.turn_off", label: "Lüfter ausschalten (Rauchstopp)", icon: "🌀", recommended: true },
+          { service: "switch.turn_off", label: "Schalter/Strom trennen", icon: "🔌", recommended: true },
+          { service: "cover.open_cover", label: "Rollladen öffnen (Fluchtweg)", icon: "🪟", recommended: true },
+          { service: "siren.turn_on", label: "Sirene einschalten (Alarm)", icon: "🚨", recommended: true },
+          { service: "light.turn_on", label: "Licht einschalten (Rot)", icon: "💡", recommended: true },
+          { service: "notify.notify", label: "Standard Push-Benachrichtigung", icon: "📱", recommended: true },
+          { service: "homeassistant.turn_off", label: "Gerät ausschalten", icon: "🔌" },
+        ].forEach(s => services.push(s));
+      }
+
+      return services;
+    }
+
+    _renderTargetPreview(targetRaw) {
+      if (!targetRaw || !targetRaw.trim()) return '';
+      const entityIds = targetRaw.split(',').map(s => s.trim()).filter(Boolean);
+      if (entityIds.length === 0) return '';
+
+      const chips = entityIds.map(eid => {
+        const stateObj = this._hass && this._hass.states && this._hass.states[eid];
+        if (!stateObj) {
+          return `
+            <div class="target-chip not-found" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border-radius: 8px; background: rgba(245, 127, 23, 0.08); border: 1px solid rgba(245, 127, 23, 0.3); font-size: 12px;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span>⚠️</span>
+                <code>${eid}</code>
+              </div>
+              <span style="color: var(--secondary-text-color, #757575); font-size: 11px;">(${this._t("entityNotFoundInHA") || 'Nicht im HA-Zustandsregister gefunden'})</span>
+            </div>
+          `;
+        }
+        const fn = (stateObj.attributes && stateObj.attributes.friendly_name) || eid;
+        const st = stateObj.state;
+        const domain = eid.split('.')[0];
+        const icon = this._getDomainIcon(domain);
+        const isOn = ["on", "open", "unlocked", "active"].includes(String(st).toLowerCase());
+        const isOff = ["off", "closed", "locked", "idle"].includes(String(st).toLowerCase());
+        const badgeClass = isOn ? "badge-status-on" : isOff ? "badge-status-off" : "badge-status-offline";
+        const stateText = this._formatStateText(domain, st);
+
+        return `
+          <div class="target-chip" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; border-radius: 8px; background: var(--secondary-background-color, rgba(127, 127, 127, 0.08)); border: 1px solid var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.2)));">
+            <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
+              <span style="font-size: 18px; line-height: 1;">${icon}</span>
+              <div style="overflow: hidden;">
+                <div style="font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--primary-text-color, inherit);">
+                  ${fn}
+                </div>
+                <div style="font-size: 11px; font-family: monospace; color: var(--secondary-text-color, #757575); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                  ${eid}
+                </div>
+              </div>
+            </div>
+            <div>
+              <span class="badge ${badgeClass}" style="font-size: 11px; padding: 3px 8px;">
+                ${stateText}
+              </span>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 6px;">
+          <div style="font-size: 11px; font-weight: 600; color: var(--secondary-text-color, #757575);">
+            ${this._t("targetPreviewTitle")}
+          </div>
+          ${chips}
+        </div>
+      `;
     }
 
     _render() {
@@ -1159,6 +1422,54 @@
             overflow: hidden;
             text-overflow: ellipsis;
           }
+          .target-chip {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            background: var(--secondary-background-color, rgba(127, 127, 127, 0.08));
+            border: 1px solid var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.2)));
+            box-sizing: border-box;
+          }
+          .target-chip.not-found {
+            background: rgba(245, 127, 23, 0.08);
+            border-color: rgba(245, 127, 23, 0.3);
+          }
+          .data-preset-btn {
+            padding: 5px 10px;
+            font-size: 11px;
+            font-weight: 600;
+            border-radius: 6px;
+            border: 1px solid var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.3)));
+            background: var(--secondary-background-color, rgba(127, 127, 127, 0.1));
+            color: var(--primary-text-color, inherit);
+            cursor: pointer;
+            transition: all 0.15s ease;
+          }
+          .data-preset-btn:hover {
+            background: var(--primary-color, #0288d1);
+            color: #ffffff !important;
+            border-color: var(--primary-color, #0288d1);
+          }
+          .data-var-chip {
+            display: inline-block;
+            padding: 4px 8px;
+            font-size: 11px;
+            font-family: var(--code-font-family, monospace);
+            border-radius: 6px;
+            border: 1px dashed var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.35)));
+            background: var(--card-background-color, var(--ha-card-background, rgba(127, 127, 127, 0.05)));
+            color: var(--primary-text-color, inherit);
+            cursor: pointer;
+            transition: all 0.15s ease;
+          }
+          .data-var-chip:hover {
+            background: rgba(2, 136, 209, 0.15);
+            border-color: var(--primary-color, #0288d1);
+            color: var(--primary-color, #0288d1);
+          }
           .modal-actions {
             display: flex;
             justify-content: flex-end;
@@ -1917,14 +2228,23 @@
 
       if (this._modalOpen === 'action') {
         const a = this._editingAction || {};
+        const currentTarget = (a.target && a.target.entity_id) ? (Array.isArray(a.target.entity_id) ? a.target.entity_id.join(', ') : a.target.entity_id) : '';
+        const currentService = a.service || '';
+        const targetDomain = currentTarget ? currentTarget.split(',')[0].trim().split('.')[0] : (currentService ? currentService.split('.')[0] : '');
+        const availableServices = this._getServicesForDomain(targetDomain);
+
         return `
           <div class="modal-backdrop">
-            <div class="modal-content">
+            <div class="modal-content" style="max-width: 640px;">
               <h3>${a.id ? this._t("edit") : this._t("btnAddAction")}</h3>
+
+              <!-- Name -->
               <div class="form-group">
                 <label class="form-label">Aktions-Name</label>
                 <input type="text" class="form-control" id="modal-act-name" value="${a.name || ''}" placeholder="Hauptwasserhahn schließen">
               </div>
+
+              <!-- Phase / Escalation -->
               <div class="form-group">
                 <label class="form-label">Eskalations-Stufe / Phase</label>
                 <select class="form-control" id="modal-act-phase">
@@ -1936,6 +2256,8 @@
                   Stufe 1 steuert Notfall-Aktoren (z. B. Absperrventile, Lüftung aus). Stufe 2 sendet Push-Meldungen. Stufe 3 aktiviert Sirenen und Beleuchtung.
                 </small>
               </div>
+
+              <!-- Hazard Types -->
               <div class="form-group">
                 <label class="form-label">Auslösen bei folgenden Gefahrentypen</label>
                 <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px;">
@@ -1956,24 +2278,115 @@
                   </label>
                 </div>
               </div>
+
+              <!-- Target Entity with Live Search & Preview -->
+              <div class="form-group" style="position: relative;">
+                <label class="form-label">${this._t("actionTarget")}</label>
+                <div style="position: relative;">
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="modal-act-target"
+                    value="${currentTarget}"
+                    placeholder="${this._t("targetPlaceholder")}"
+                    autocomplete="off"
+                  >
+                  <div id="action-target-suggestions" class="suggestions-dropdown"></div>
+                </div>
+                <small style="color: var(--secondary-text-color, #757575); font-size: 11px; display: block; margin-top: 4px;">
+                  ${this._t("targetHelp")}
+                </small>
+                <div id="action-target-preview">
+                  ${this._renderTargetPreview(currentTarget)}
+                </div>
+              </div>
+
+              <!-- Service Selection with Dynamic Options based on Target -->
               <div class="form-group">
                 <label class="form-label">${this._t("actionService")}</label>
-                <input type="text" class="form-control" id="modal-act-service" value="${a.service || ''}" placeholder="valve.close_valve">
+                <div style="margin-bottom: 6px;">
+                  <label style="font-size: 11px; font-weight: 600; color: var(--secondary-text-color, #757575); display: block; margin-bottom: 3px;">
+                    ${this._t("serviceSelectLabel")}
+                  </label>
+                  <select class="form-control" id="modal-act-service-select">
+                    ${availableServices.map(s => `
+                      <option value="${s.service}" ${currentService === s.service ? 'selected' : ''}>
+                        ${s.icon || '⚡'} ${s.service} — ${s.label || s.service} ${s.recommended ? '⭐ [Empfohlen]' : ''}
+                      </option>
+                    `).join('')}
+                    <option value="custom" ${(!availableServices.some(s => s.service === currentService) && currentService) ? 'selected' : ''}>
+                      ${this._t("serviceCustomOption")}
+                    </option>
+                  </select>
+                </div>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="modal-act-service"
+                  value="${currentService}"
+                  placeholder="valve.close_valve"
+                >
                 <small style="color: var(--secondary-text-color, #757575); font-size: 11px; display: block; margin-top: 4px;">
-                  z. B. <code>valve.close_valve</code>, <code>fan.turn_off</code>, <code>switch.turn_off</code>, <code>siren.turn_on</code>
+                  ${this._t("serviceHelp")}
                 </small>
               </div>
+
+              <!-- Payload / Service Data with Presets, Placeholders & Validation -->
               <div class="form-group">
-                <label class="form-label">${this._t("actionTarget")}</label>
-                <input type="text" class="form-control" id="modal-act-target" value="${(a.target && a.target.entity_id) ? (Array.isArray(a.target.entity_id) ? a.target.entity_id.join(', ') : a.target.entity_id) : ''}" placeholder="valve.hauptwasser">
-                <small style="color: var(--secondary-text-color, #757575); font-size: 11px; display: block; margin-top: 4px;">
-                  Ziel-Entitäten (z. B. Notfall-Absperrventile, Lüfter, Schalter). Kommagetrennt bei mehreren Entitäten.
-                </small>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                  <label class="form-label" style="margin-bottom: 0;">${this._t("actionPayload")}</label>
+                  <span id="act-data-validation-badge" style="font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px; background: rgba(76, 175, 80, 0.15); color: #4caf50;">
+                    ${this._t("validJson")}
+                  </span>
+                </div>
+
+                <!-- Explanation Box -->
+                <div style="background: rgba(2, 136, 209, 0.08); border: 1px solid rgba(2, 136, 209, 0.25); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; font-size: 12px; line-height: 1.45;">
+                  <div style="font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+                    <span>ℹ️</span> <span>${this._t("payloadHelpTitle")}</span>
+                  </div>
+                  <div style="color: var(--secondary-text-color, #757575);">
+                    ${this._t("payloadHelpDesc")}
+                  </div>
+                </div>
+
+                <!-- Presets -->
+                <div style="margin-bottom: 8px;">
+                  <div style="font-size: 11px; font-weight: 600; color: var(--secondary-text-color, #757575); margin-bottom: 4px;">
+                    ${this._t("presetsTitle")}
+                  </div>
+                  <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                    <button type="button" class="btn-data-preset data-preset-btn" data-preset="empty">${this._t("presetEmpty")}</button>
+                    <button type="button" class="btn-data-preset data-preset-btn" data-preset="notify">${this._t("presetNotify")}</button>
+                    <button type="button" class="btn-data-preset data-preset-btn" data-preset="critical">${this._t("presetCritical")}</button>
+                    <button type="button" class="btn-data-preset data-preset-btn" data-preset="red_light">${this._t("presetRedLight")}</button>
+                    <button type="button" class="btn-data-preset data-preset-btn" data-preset="siren">${this._t("presetSiren")}</button>
+                  </div>
+                </div>
+
+                <!-- Template Placeholders -->
+                <div style="margin-bottom: 8px;">
+                  <div style="font-size: 11px; font-weight: 600; color: var(--secondary-text-color, #757575); margin-bottom: 4px;">
+                    ${this._t("variablesTitle")}
+                  </div>
+                  <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                    <span class="btn-data-var data-var-chip" data-var="{{ sensor_name }}" title="Name des auslösenden Sensors">+ {{ sensor_name }}</span>
+                    <span class="btn-data-var data-var-chip" data-var="{{ zone }}" title="Gefahrenzone / Raum">+ {{ zone }}</span>
+                    <span class="btn-data-var data-var-chip" data-var="{{ hazard_type }}" title="Gefahrentyp (smoke, moisture, etc.)">+ {{ hazard_type }}</span>
+                    <span class="btn-data-var data-var-chip" data-var="{{ timestamp }}" title="Auslöse-Zeitpunkt">+ {{ timestamp }}</span>
+                  </div>
+                </div>
+
+                <textarea
+                  class="form-control"
+                  id="modal-act-data"
+                  rows="4"
+                  style="font-family: monospace; font-size: 12px; resize: vertical;"
+                >${JSON.stringify(a.data || {}, null, 2)}</textarea>
+                <div id="modal-act-data-error" style="display: none; color: #f44336; font-size: 11px; margin-top: 4px;"></div>
               </div>
-              <div class="form-group">
-                <label class="form-label">${this._t("actionPayload")}</label>
-                <textarea class="form-control" id="modal-act-data" rows="3" style="font-family:monospace; font-size:12px;">${JSON.stringify(a.data || {}, null, 2)}</textarea>
-              </div>
+
+              <!-- Modal Actions -->
               <div class="modal-actions">
                 <button class="btn btn-secondary" id="btn-modal-cancel">${this._t("cancel")}</button>
                 <button class="btn btn-primary" id="btn-modal-save-action">${this._t("save")}</button>
@@ -2407,6 +2820,257 @@
             alert("Fehler beim Speichern der Zone: " + err.message);
           }
         });
+      }
+
+      // Action Modal Interactive Controls (Target Search, Live Preview, Dynamic Services, Presets, Validation)
+      const actTargetInput = root.querySelector('#modal-act-target');
+      const actTargetSuggestions = root.querySelector('#action-target-suggestions');
+      const actTargetPreview = root.querySelector('#action-target-preview');
+      const actServiceSelect = root.querySelector('#modal-act-service-select');
+      const actServiceInput = root.querySelector('#modal-act-service');
+      const actDataTextarea = root.querySelector('#modal-act-data');
+      const actDataBadge = root.querySelector('#act-data-validation-badge');
+      const actDataError = root.querySelector('#modal-act-data-error');
+
+      if (actTargetInput && actServiceSelect && actDataTextarea) {
+        // 1. JSON Live Validator
+        const validateJson = () => {
+          if (!actDataTextarea || !actDataBadge) return true;
+          const raw = actDataTextarea.value.trim();
+          if (!raw) {
+            actDataBadge.textContent = this._t("validJson");
+            actDataBadge.style.background = "rgba(76, 175, 80, 0.15)";
+            actDataBadge.style.color = "#4caf50";
+            if (actDataError) actDataError.style.display = "none";
+            return true;
+          }
+          try {
+            JSON.parse(raw);
+            actDataBadge.textContent = this._t("validJson");
+            actDataBadge.style.background = "rgba(76, 175, 80, 0.15)";
+            actDataBadge.style.color = "#4caf50";
+            if (actDataError) actDataError.style.display = "none";
+            return true;
+          } catch (err) {
+            actDataBadge.textContent = this._t("invalidJson");
+            actDataBadge.style.background = "rgba(244, 67, 54, 0.15)";
+            actDataBadge.style.color = "#f44336";
+            if (actDataError) {
+              actDataError.textContent = err.message;
+              actDataError.style.display = "block";
+            }
+            return false;
+          }
+        };
+
+        actDataTextarea.addEventListener('input', validateJson);
+        validateJson();
+
+        // 2. Presets Buttons
+        root.querySelectorAll('.btn-data-preset').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            const key = e.currentTarget.dataset.preset;
+            const val = ACTION_DATA_PRESETS[key];
+            if (val !== undefined) {
+              actDataTextarea.value = val;
+              validateJson();
+            }
+          });
+        });
+
+        // 3. Dynamic Variable Tags
+        root.querySelectorAll('.btn-data-var').forEach(chip => {
+          chip.addEventListener('click', (e) => {
+            const varTag = e.currentTarget.dataset.var;
+            const start = actDataTextarea.selectionStart || 0;
+            const end = actDataTextarea.selectionEnd || 0;
+            const val = actDataTextarea.value;
+            actDataTextarea.value = val.substring(0, start) + varTag + val.substring(end);
+            actDataTextarea.selectionStart = actDataTextarea.selectionEnd = start + varTag.length;
+            actDataTextarea.focus();
+            validateJson();
+          });
+        });
+
+        // 4. Update dynamic services dropdown based on domain
+        const updateServicesDropdown = (domain, preserveService = null) => {
+          const services = this._getServicesForDomain(domain);
+          const currentVal = preserveService || (actServiceInput ? actServiceInput.value.trim() : '');
+
+          let optionsHtml = services.map(s => `
+            <option value="${s.service}" ${currentVal === s.service ? 'selected' : ''}>
+              ${s.icon || '⚡'} ${s.service} — ${s.label || s.service} ${s.recommended ? '⭐ [Empfohlen]' : ''}
+            </option>
+          `).join('');
+
+          const hasMatch = services.some(s => s.service === currentVal);
+          optionsHtml += `
+            <option value="custom" ${(!hasMatch && currentVal) ? 'selected' : ''}>
+              ${this._t("serviceCustomOption")}
+            </option>
+          `;
+          actServiceSelect.innerHTML = optionsHtml;
+
+          if (!currentVal && services.length > 0) {
+            const rec = services.find(s => s.recommended) || services[0];
+            actServiceSelect.value = rec.service;
+            if (actServiceInput) actServiceInput.value = rec.service;
+          } else if (hasMatch) {
+            actServiceSelect.value = currentVal;
+          } else if (currentVal) {
+            actServiceSelect.value = "custom";
+          }
+        };
+
+        // 5. Service select change listener
+        actServiceSelect.addEventListener('change', (e) => {
+          const val = e.target.value;
+          if (val === 'custom') {
+            if (actServiceInput) {
+              actServiceInput.focus();
+              actServiceInput.select();
+            }
+          } else {
+            if (actServiceInput) actServiceInput.value = val;
+            // Smart preset suggestion: if data is empty or default empty, suggest appropriate payload
+            if (actDataTextarea.value.trim() === '{}' || !actDataTextarea.value.trim()) {
+              if (val.startsWith('notify.')) {
+                actDataTextarea.value = ACTION_DATA_PRESETS.notify;
+                validateJson();
+              } else if (val.startsWith('light.')) {
+                actDataTextarea.value = ACTION_DATA_PRESETS.red_light;
+                validateJson();
+              } else if (val.startsWith('siren.')) {
+                actDataTextarea.value = ACTION_DATA_PRESETS.siren;
+                validateJson();
+              }
+            }
+          }
+        });
+
+        // 6. Service input listener
+        if (actServiceInput) {
+          actServiceInput.addEventListener('input', (e) => {
+            const srv = e.target.value.trim();
+            const match = Array.from(actServiceSelect.options).some(opt => opt.value === srv);
+            actServiceSelect.value = match ? srv : 'custom';
+          });
+        }
+
+        // 7. Live Target Suggestions & Preview
+        if (actTargetSuggestions) {
+          const getTargetCandidates = () => {
+            const list = [];
+            const priorityDomains = ['valve', 'siren', 'switch', 'light', 'cover', 'fan', 'notify', 'media_player', 'lock', 'climate', 'script', 'scene'];
+            if (this._hass && this._hass.states) {
+              Object.keys(this._hass.states).forEach(eid => {
+                const dom = eid.split('.')[0];
+                const st = this._hass.states[eid];
+                const fn = (st.attributes && st.attributes.friendly_name) || eid;
+                list.push({
+                  entity_id: eid,
+                  name: fn,
+                  domain: dom,
+                  state: st.state,
+                  is_priority: priorityDomains.includes(dom),
+                });
+              });
+            }
+            return list;
+          };
+
+          const renderTargetSuggestions = (query = "") => {
+            const tokens = (query || "").split(',');
+            const curToken = tokens[tokens.length - 1].trim().toLowerCase();
+            const all = getTargetCandidates();
+
+            let matches = all;
+            if (curToken) {
+              matches = all.filter(c =>
+                c.entity_id.toLowerCase().includes(curToken) ||
+                (c.name && c.name.toLowerCase().includes(curToken))
+              );
+            }
+            matches.sort((a, b) => {
+              if (a.is_priority !== b.is_priority) return a.is_priority ? -1 : 1;
+              return a.name.localeCompare(b.name);
+            });
+
+            if (matches.length === 0) {
+              actTargetSuggestions.innerHTML = `
+                <div style="padding: 10px 14px; font-size: 12px; color: var(--secondary-text-color, #757575);">
+                  Keine passenden Entitäten gefunden.
+                </div>
+              `;
+              actTargetSuggestions.classList.add('visible');
+              return;
+            }
+
+            const topMatches = matches.slice(0, 25);
+            actTargetSuggestions.innerHTML = topMatches.map(c => `
+              <div class="suggestion-item target-suggestion-item" data-entity-id="${c.entity_id}" data-domain="${c.domain}">
+                <div class="suggestion-info">
+                  <span class="suggestion-name">
+                    ${this._getDomainIcon(c.domain)} <strong>${c.name}</strong>
+                  </span>
+                  <span class="suggestion-entity">${c.entity_id}</span>
+                </div>
+                <div>
+                  <span class="badge ${c.is_priority ? 'badge-smoke' : 'badge-generic'}" style="font-size: 11px;">
+                    ${c.domain}
+                  </span>
+                </div>
+              </div>
+            `).join('');
+            actTargetSuggestions.classList.add('visible');
+
+            actTargetSuggestions.querySelectorAll('.target-suggestion-item').forEach(item => {
+              item.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                const eid = item.dataset.entityId;
+                const dom = item.dataset.domain;
+
+                // Replace the last typed token with selected entity ID
+                const currentRaw = actTargetInput.value;
+                const rawTokens = currentRaw.split(',');
+                rawTokens[rawTokens.length - 1] = " " + eid;
+                const updatedVal = rawTokens.map(t => t.trim()).filter(Boolean).join(", ");
+                actTargetInput.value = updatedVal;
+                actTargetSuggestions.classList.remove('visible');
+
+                // Update preview
+                if (actTargetPreview) {
+                  actTargetPreview.innerHTML = this._renderTargetPreview(updatedVal);
+                }
+
+                // Update services dropdown for this domain
+                updateServicesDropdown(dom);
+              });
+            });
+          };
+
+          actTargetInput.addEventListener('input', (e) => {
+            const val = e.target.value;
+            if (actTargetPreview) {
+              actTargetPreview.innerHTML = this._renderTargetPreview(val);
+            }
+            renderTargetSuggestions(val);
+            const firstEid = val.split(',')[0].trim();
+            if (firstEid.includes('.')) {
+              updateServicesDropdown(firstEid.split('.')[0]);
+            }
+          });
+
+          actTargetInput.addEventListener('focus', (e) => {
+            renderTargetSuggestions(e.target.value);
+          });
+
+          actTargetInput.addEventListener('blur', () => {
+            setTimeout(() => {
+              actTargetSuggestions.classList.remove('visible');
+            }, 200);
+          });
+        }
       }
 
       const btnSaveModalAction = root.querySelector('#btn-modal-save-action');
