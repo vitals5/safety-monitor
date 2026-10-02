@@ -1381,6 +1381,16 @@
             color: #d32f2f !important;
             border-color: #f44336 !important;
           }
+          .btn.test-success, .btn-primary.test-success, .btn-modal-save-zone.test-success {
+            background-color: #2e7d32 !important;
+            color: #ffffff !important;
+            border-color: #2e7d32 !important;
+          }
+          .btn.test-error, .btn-primary.test-error, .btn-modal-save-zone.test-error {
+            background-color: #d32f2f !important;
+            color: #ffffff !important;
+            border-color: #d32f2f !important;
+          }
           .btn-sm.danger {
             background-color: rgba(211, 47, 47, 0.12);
             color: var(--error-color, #d32f2f) !important;
@@ -3237,27 +3247,56 @@
       const btnSaveSettings = root.querySelector('#btn-save-settings');
       if (btnSaveSettings) {
         btnSaveSettings.addEventListener('click', async () => {
+          const origContent = btnSaveSettings.innerHTML;
+          btnSaveSettings.disabled = true;
+          btnSaveSettings.innerHTML = '⏳ Speichern...';
+          btnSaveSettings.classList.remove('test-success', 'test-error');
+
           const testMin = parseInt(root.querySelector('#setting-test-timeout').value, 10) || 15;
           const silMin = parseInt(root.querySelector('#setting-silence-timeout').value, 10) || 10;
           const dkSec = parseInt(root.querySelector('#setting-double-knock').value, 10) || 60;
           const offlineAlert = root.querySelector('#setting-offline-alerts').checked;
           const batteryAlert = root.querySelector('#setting-battery-alerts').checked;
 
+          const updatedSettings = {
+            test_mode_timeout: testMin * 60,
+            silence_timeout: silMin * 60,
+            double_knock_global_timeout: dkSec,
+            heartbeat_alert_offline: offlineAlert,
+            heartbeat_alert_battery: batteryAlert,
+          };
+
           try {
             await this._hass.callWS({
               type: "safety_monitor/config/update_settings",
-              settings: {
-                test_mode_timeout: testMin * 60,
-                silence_timeout: silMin * 60,
-                double_knock_global_timeout: dkSec,
-                heartbeat_alert_offline: offlineAlert,
-                heartbeat_alert_battery: batteryAlert,
-              }
+              settings: updatedSettings,
             });
-            alert("Einstellungen erfolgreich gespeichert!");
-            await this._loadData();
+            this._config.settings = Object.assign({}, this._config.settings, updatedSettings);
+            btnSaveSettings.innerHTML = '✅ Gespeichert';
+            btnSaveSettings.classList.add('test-success');
+            setTimeout(() => {
+              const currentBtn = this.shadowRoot && this.shadowRoot.querySelector('#btn-save-settings');
+              if (currentBtn) {
+                currentBtn.innerHTML = origContent;
+                currentBtn.classList.remove('test-success');
+                currentBtn.disabled = false;
+              }
+            }, 2500);
           } catch (err) {
-            alert("Fehler beim Speichern: " + err.message);
+            const rawMsg = err?.message || err?.error || "Fehler beim Speichern";
+            const shortMsg = rawMsg.length > 24 ? rawMsg.slice(0, 21) + '...' : rawMsg;
+            btnSaveSettings.innerHTML = `❌ ${shortMsg}`;
+            btnSaveSettings.title = rawMsg;
+            btnSaveSettings.classList.add('test-error');
+            setTimeout(() => {
+              const currentBtn = this.shadowRoot && this.shadowRoot.querySelector('#btn-save-settings');
+              if (currentBtn) {
+                currentBtn.innerHTML = origContent;
+                currentBtn.title = '';
+                currentBtn.classList.remove('test-error');
+                currentBtn.disabled = false;
+              }
+            }, 3500);
           }
         });
       }
@@ -3288,9 +3327,20 @@
           const batteryEntity = root.querySelector('#modal-sensor-battery')?.value.trim() || "";
 
           if (!entity) {
-            alert("Entity ID ist erforderlich");
+            btnSaveModalSensor.innerHTML = '⚠️ Entity ID erforderlich';
+            btnSaveModalSensor.classList.add('test-error');
+            setTimeout(() => {
+              btnSaveModalSensor.innerHTML = this._t("save");
+              btnSaveModalSensor.classList.remove('test-error');
+            }, 2500);
+            root.querySelector('#modal-sensor-entity')?.focus();
             return;
           }
+
+          const origContent = btnSaveModalSensor.innerHTML;
+          btnSaveModalSensor.disabled = true;
+          btnSaveModalSensor.innerHTML = '⏳ Speichern...';
+          btnSaveModalSensor.classList.remove('test-success', 'test-error');
 
           try {
             await this._hass.callWS({
@@ -3311,10 +3361,24 @@
                 enabled: true,
               }
             });
-            this._modalOpen = null;
-            await this._loadData();
+            btnSaveModalSensor.innerHTML = '✅ Gespeichert';
+            btnSaveModalSensor.classList.add('test-success');
+            setTimeout(async () => {
+              this._modalOpen = null;
+              await this._loadData();
+            }, 450);
           } catch (err) {
-            alert("Fehler beim Speichern des Sensors: " + err.message);
+            const rawMsg = err?.message || err?.error || "Fehler aufgetreten";
+            const shortMsg = rawMsg.length > 24 ? rawMsg.slice(0, 21) + '...' : rawMsg;
+            btnSaveModalSensor.innerHTML = `❌ ${shortMsg}`;
+            btnSaveModalSensor.title = rawMsg;
+            btnSaveModalSensor.classList.add('test-error');
+            setTimeout(() => {
+              btnSaveModalSensor.innerHTML = origContent;
+              btnSaveModalSensor.title = '';
+              btnSaveModalSensor.classList.remove('test-error');
+              btnSaveModalSensor.disabled = false;
+            }, 3000);
           }
         });
       }
@@ -3325,15 +3389,25 @@
           const rawId = (root.querySelector('#modal-zone-id').value || '').trim();
           const id = rawId.toLowerCase().replace(/\s+/g, '_');
           const enteredName = (root.querySelector('#modal-zone-name').value || '').trim();
-          // Fallback: If no name entered, use entered ID as name
           const name = enteredName || rawId || id;
           const dk = root.querySelector('#modal-zone-dk').checked;
           const timeout = parseInt(root.querySelector('#modal-zone-dk-timeout').value, 10) || 60;
 
           if (!id) {
-            alert("Zonen ID ist erforderlich");
+            btnSaveModalZone.innerHTML = '⚠️ Zonen-ID erforderlich';
+            btnSaveModalZone.classList.add('test-error');
+            setTimeout(() => {
+              btnSaveModalZone.innerHTML = this._t("save");
+              btnSaveModalZone.classList.remove('test-error');
+            }, 2500);
+            root.querySelector('#modal-zone-id')?.focus();
             return;
           }
+
+          const origContent = btnSaveModalZone.innerHTML;
+          btnSaveModalZone.disabled = true;
+          btnSaveModalZone.innerHTML = '⏳ Speichern...';
+          btnSaveModalZone.classList.remove('test-success', 'test-error');
 
           try {
             await this._hass.callWS({
@@ -3345,10 +3419,24 @@
                 double_knock_timeout: timeout,
               }
             });
-            this._modalOpen = null;
-            await this._loadData();
+            btnSaveModalZone.innerHTML = '✅ Gespeichert';
+            btnSaveModalZone.classList.add('test-success');
+            setTimeout(async () => {
+              this._modalOpen = null;
+              await this._loadData();
+            }, 450);
           } catch (err) {
-            alert("Fehler beim Speichern der Zone: " + err.message);
+            const rawMsg = err?.message || err?.error || "Fehler aufgetreten";
+            const shortMsg = rawMsg.length > 24 ? rawMsg.slice(0, 21) + '...' : rawMsg;
+            btnSaveModalZone.innerHTML = `❌ ${shortMsg}`;
+            btnSaveModalZone.title = rawMsg;
+            btnSaveModalZone.classList.add('test-error');
+            setTimeout(() => {
+              btnSaveModalZone.innerHTML = origContent;
+              btnSaveModalZone.title = '';
+              btnSaveModalZone.classList.remove('test-error');
+              btnSaveModalZone.disabled = false;
+            }, 3000);
           }
         });
       }
@@ -3629,14 +3717,35 @@
           try {
             dataObj = JSON.parse(root.querySelector('#modal-act-data').value || "{}");
           } catch (err) {
-            alert("Ungültiges JSON in den Dienst-Daten: " + err.message);
+            btnSaveModalAction.innerHTML = '❌ Ungültiges JSON';
+            btnSaveModalAction.classList.add('test-error');
+            const dataErr = root.querySelector('#modal-act-data-error');
+            if (dataErr) {
+              dataErr.style.display = 'block';
+              dataErr.textContent = 'Ungültiges JSON: ' + err.message;
+            }
+            setTimeout(() => {
+              btnSaveModalAction.innerHTML = this._t("save");
+              btnSaveModalAction.classList.remove('test-error');
+            }, 3000);
             return;
           }
 
           if (!service) {
-            alert("Dienst (Service) ist erforderlich!");
+            btnSaveModalAction.innerHTML = '⚠️ Dienst erforderlich';
+            btnSaveModalAction.classList.add('test-error');
+            setTimeout(() => {
+              btnSaveModalAction.innerHTML = this._t("save");
+              btnSaveModalAction.classList.remove('test-error');
+            }, 2500);
+            root.querySelector('#modal-act-service')?.focus();
             return;
           }
+
+          const origContent = btnSaveModalAction.innerHTML;
+          btnSaveModalAction.disabled = true;
+          btnSaveModalAction.innerHTML = '⏳ Speichern...';
+          btnSaveModalAction.classList.remove('test-success', 'test-error');
 
           const target = targetRaw ? { entity_id: targetRaw.split(',').map(s => s.trim()) } : {};
           const selectedTypes = Array.from(root.querySelectorAll('.act-type-cb:checked')).map(cb => cb.value);
@@ -3657,10 +3766,24 @@
                 trigger_types: triggerTypes,
               }
             });
-            this._modalOpen = null;
-            await this._loadData();
+            btnSaveModalAction.innerHTML = '✅ Gespeichert';
+            btnSaveModalAction.classList.add('test-success');
+            setTimeout(async () => {
+              this._modalOpen = null;
+              await this._loadData();
+            }, 450);
           } catch (err) {
-            alert("Fehler beim Speichern der Aktion: " + err.message);
+            const rawMsg = err?.message || err?.error || "Fehler aufgetreten";
+            const shortMsg = rawMsg.length > 24 ? rawMsg.slice(0, 21) + '...' : rawMsg;
+            btnSaveModalAction.innerHTML = `❌ ${shortMsg}`;
+            btnSaveModalAction.title = rawMsg;
+            btnSaveModalAction.classList.add('test-error');
+            setTimeout(() => {
+              btnSaveModalAction.innerHTML = origContent;
+              btnSaveModalAction.title = '';
+              btnSaveModalAction.classList.remove('test-error');
+              btnSaveModalAction.disabled = false;
+            }, 3000);
           }
         });
       }
@@ -3673,27 +3796,44 @@
           const service = root.querySelector('#modal-act-service').value.trim();
           const targetRaw = root.querySelector('#modal-act-target').value.trim();
           const repeatInterval = parseInt(root.querySelector('#modal-act-repeat')?.value, 10) || 0;
-          let dataObj = {};
-          try {
-            dataObj = JSON.parse(root.querySelector('#modal-act-data').value || "{}");
-          } catch (err) {
-            alert("Ungültiges JSON in den Dienst-Daten: " + err.message);
-            return;
-          }
-
-          if (!service) {
-            alert("Dienst (Service) ist erforderlich!");
-            return;
-          }
-
-          const target = targetRaw ? { entity_id: targetRaw.split(',').map(s => s.trim()) } : {};
-          const selectedTypes = Array.from(root.querySelectorAll('.act-type-cb:checked')).map(cb => cb.value);
-          const triggerTypes = selectedTypes.length > 0 ? selectedTypes : ["smoke", "moisture", "gas", "carbon_monoxide", "heat"];
-
           const feedbackEl = root.querySelector('#modal-test-action-feedback');
           if (feedbackEl) {
             feedbackEl.style.display = 'none';
             feedbackEl.innerHTML = '';
+          }
+
+          let dataObj = {};
+          try {
+            dataObj = JSON.parse(root.querySelector('#modal-act-data').value || "{}");
+          } catch (err) {
+            btnTestModalAction.innerHTML = '❌ Ungültiges JSON';
+            btnTestModalAction.classList.add('test-error');
+            if (feedbackEl) {
+              feedbackEl.style.display = 'block';
+              feedbackEl.style.color = '#d32f2f';
+              feedbackEl.innerHTML = `⚠️ Ungültiges JSON: ${err.message}`;
+            }
+            setTimeout(() => {
+              btnTestModalAction.innerHTML = '⚡ ' + this._t("testAction");
+              btnTestModalAction.classList.remove('test-error');
+            }, 3000);
+            return;
+          }
+
+          if (!service) {
+            btnTestModalAction.innerHTML = '⚠️ Dienst erforderlich';
+            btnTestModalAction.classList.add('test-error');
+            if (feedbackEl) {
+              feedbackEl.style.display = 'block';
+              feedbackEl.style.color = '#d32f2f';
+              feedbackEl.innerHTML = '⚠️ Bitte wählen oder tippen Sie einen Dienst ein.';
+            }
+            setTimeout(() => {
+              btnTestModalAction.innerHTML = '⚡ ' + this._t("testAction");
+              btnTestModalAction.classList.remove('test-error');
+            }, 2500);
+            root.querySelector('#modal-act-service')?.focus();
+            return;
           }
 
           const origContent = btnTestModalAction.innerHTML;
