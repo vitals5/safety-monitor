@@ -439,7 +439,9 @@
         this._config = config || this._config;
         const candResult = await this._hass.callWS({ type: "safety_monitor/sensors/list_candidates" });
         this._candidates = (candResult && candResult.candidates) || [];
-        this._render();
+        if (!this._modalOpen) {
+          this._render();
+        }
       } catch (err) {
         console.error("Error loading Safety Monitor data:", err);
       }
@@ -469,7 +471,7 @@
             this._config.ignored_sensors = status.ignored_sensors || [];
             this._config.sensor_batteries = status.sensor_batteries || {};
             this._config.low_battery_sensors = status.low_battery_sensors || {};
-            if (changed || Object.keys(this._config.active_triggers).length > 0) {
+            if (!this._modalOpen && (changed || Object.keys(this._config.active_triggers).length > 0)) {
               this._render();
             }
           }
@@ -2109,7 +2111,8 @@
       root.querySelectorAll('.btn-edit-sensor').forEach(btn => {
         btn.addEventListener('click', (e) => {
           const eid = e.currentTarget.dataset.entityId;
-          this._editingSensor = Object.assign({}, this._config.sensors[eid]);
+          const found = (this._config.sensors && this._config.sensors[eid]) || {};
+          this._editingSensor = JSON.parse(JSON.stringify(found));
           this._modalOpen = 'sensor';
           this._render();
         });
@@ -3512,7 +3515,8 @@
       root.querySelectorAll('.btn-edit-action').forEach(btn => {
         btn.addEventListener('click', (e) => {
           const aid = e.currentTarget.dataset.actionId;
-          this._editingAction = Object.assign({}, this._config.actions.find(a => a.id === aid));
+          const found = (this._config.actions || []).find(a => a.id === aid);
+          this._editingAction = found ? JSON.parse(JSON.stringify(found)) : {};
           this._modalOpen = 'action';
           this._render();
         });
@@ -3579,7 +3583,8 @@
       root.querySelectorAll('.btn-edit-zone').forEach(btn => {
         btn.addEventListener('click', (e) => {
           const zid = e.currentTarget.dataset.zoneId;
-          this._editingZone = Object.assign({}, this._config.zones[zid]);
+          const found = (this._config.zones && this._config.zones[zid]) || {};
+          this._editingZone = JSON.parse(JSON.stringify(found));
           this._modalOpen = 'zone';
           this._render();
         });
@@ -3658,6 +3663,9 @@
       if (btnModalCancel) {
         btnModalCancel.addEventListener('click', () => {
           this._modalOpen = null;
+          this._editingAction = null;
+          this._editingSensor = null;
+          this._editingZone = null;
           this._render();
         });
       }
@@ -3713,12 +3721,18 @@
                 enabled: true,
               }
             });
+            if (saveRes && saveRes.sensor) {
+              if (!this._config.sensors) this._config.sensors = {};
+              this._config.sensors[saveRes.sensor.entity_id] = saveRes.sensor;
+            }
             btnSaveModalSensor.innerHTML = '✅ Gespeichert';
             btnSaveModalSensor.classList.add('test-success');
             setTimeout(async () => {
               this._modalOpen = null;
+              this._editingSensor = null;
+              this._render();
               await this._loadData();
-            }, 450);
+            }, 350);
           } catch (err) {
             const rawMsg = err?.message || err?.error || "Fehler aufgetreten";
             const shortMsg = rawMsg.length > 24 ? rawMsg.slice(0, 21) + '...' : rawMsg;
@@ -3762,7 +3776,7 @@
           btnSaveModalZone.classList.remove('test-success', 'test-error');
 
           try {
-            await this._hass.callWS({
+            const saveRes = await this._hass.callWS({
               type: "safety_monitor/zone/save",
               zone: {
                 id: id,
@@ -3771,12 +3785,18 @@
                 double_knock_timeout: timeout,
               }
             });
+            if (saveRes && saveRes.zone) {
+              if (!this._config.zones) this._config.zones = {};
+              this._config.zones[saveRes.zone.id] = saveRes.zone;
+            }
             btnSaveModalZone.innerHTML = '✅ Gespeichert';
             btnSaveModalZone.classList.add('test-success');
             setTimeout(async () => {
               this._modalOpen = null;
+              this._editingZone = null;
+              this._render();
               await this._loadData();
-            }, 450);
+            }, 350);
           } catch (err) {
             const rawMsg = err?.message || err?.error || "Fehler aufgetreten";
             const shortMsg = rawMsg.length > 24 ? rawMsg.slice(0, 21) + '...' : rawMsg;
@@ -4099,12 +4119,12 @@
           btnSaveModalAction.innerHTML = '⏳ Speichern...';
           btnSaveModalAction.classList.remove('test-success', 'test-error');
 
-          const target = targetRaw ? { entity_id: targetRaw.split(',').map(s => s.trim()) } : {};
+          const target = targetRaw ? { entity_id: targetRaw.split(',').map(s => s.trim()).filter(Boolean) } : {};
           const selectedTypes = Array.from(root.querySelectorAll('.act-type-cb:checked')).map(cb => cb.value);
           const triggerTypes = selectedTypes.length > 0 ? selectedTypes : ["smoke", "moisture", "gas", "carbon_monoxide", "heat"];
 
           try {
-            await this._hass.callWS({
+            const saveRes = await this._hass.callWS({
               type: "safety_monitor/action/save",
               action: {
                 id: (this._editingAction && this._editingAction.id) || undefined,
@@ -4118,12 +4138,28 @@
                 trigger_types: triggerTypes,
               }
             });
+
+            if (saveRes && saveRes.action) {
+              const savedAct = saveRes.action;
+              if (!Array.isArray(this._config.actions)) {
+                this._config.actions = [];
+              }
+              const idx = this._config.actions.findIndex(a => a.id === savedAct.id);
+              if (idx >= 0) {
+                this._config.actions[idx] = savedAct;
+              } else {
+                this._config.actions.push(savedAct);
+              }
+            }
+
             btnSaveModalAction.innerHTML = '✅ Gespeichert';
             btnSaveModalAction.classList.add('test-success');
             setTimeout(async () => {
               this._modalOpen = null;
+              this._editingAction = null;
+              this._render();
               await this._loadData();
-            }, 450);
+            }, 350);
           } catch (err) {
             const rawMsg = err?.message || err?.error || "Fehler aufgetreten";
             const shortMsg = rawMsg.length > 24 ? rawMsg.slice(0, 21) + '...' : rawMsg;
@@ -4192,6 +4228,10 @@
           btnTestModalAction.disabled = true;
           btnTestModalAction.innerHTML = '⏳ Testen...';
           btnTestModalAction.classList.remove('test-success', 'test-error');
+
+          const target = targetRaw ? { entity_id: targetRaw.split(',').map(s => s.trim()).filter(Boolean) } : {};
+          const selectedTypes = Array.from(root.querySelectorAll('.act-type-cb:checked')).map(cb => cb.value);
+          const triggerTypes = selectedTypes.length > 0 ? selectedTypes : ["smoke", "moisture", "gas", "carbon_monoxide", "heat"];
 
           try {
             const res = await this._hass.callWS({

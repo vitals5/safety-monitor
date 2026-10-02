@@ -312,12 +312,14 @@ async def ws_save_action(
     msg: dict[str, Any],
 ) -> None:
     """Save or update an action."""
-    store, _ = _get_integration_instances(hass)
+    store, coordinator = _get_integration_instances(hass)
     if not store:
         connection.send_error(msg["id"], "not_found", "Safety Monitor not initialized")
         return
 
     saved = await store.async_save_action(msg["action"])
+    if coordinator:
+        await coordinator.async_update_listeners()
     connection.send_result(msg["id"], {"action": saved})
 
 
@@ -334,12 +336,14 @@ async def ws_delete_action(
     msg: dict[str, Any],
 ) -> None:
     """Delete an action."""
-    store, _ = _get_integration_instances(hass)
+    store, coordinator = _get_integration_instances(hass)
     if not store:
         connection.send_error(msg["id"], "not_found", "Safety Monitor not initialized")
         return
 
     success = await store.async_delete_action(msg["action_id"])
+    if success and coordinator:
+        await coordinator.async_update_listeners()
     connection.send_result(msg["id"], {"success": success})
 
 

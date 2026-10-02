@@ -21,6 +21,7 @@ from custom_components.safety_monitor.websocket import (
     ws_save_zone,
     ws_set_test_mode,
     ws_silence_alarm,
+    ws_test_action,
     ws_trigger_sensor_button,
     ws_update_settings,
 )
@@ -50,6 +51,9 @@ class TestWebSocketAPI(unittest.IsolatedAsyncioTestCase):
         self.coordinator.async_silence = AsyncMock(return_value=True)
         self.coordinator.async_reset = AsyncMock(return_value=True)
         self.coordinator.async_set_test_mode = AsyncMock(return_value=True)
+        self.coordinator.actions = MagicMock()
+        self.coordinator.actions.async_test_action = AsyncMock(return_value=True)
+        self.coordinator.actions.async_test_action_dict = AsyncMock(return_value=True)
 
         self.hass.data = {
             DOMAIN: {
@@ -206,6 +210,71 @@ class TestWebSocketAPI(unittest.IsolatedAsyncioTestCase):
             "binary_sensor.smoke_kitchen", True
         )
         self.connection.send_result.assert_called_once_with(13, {"success": True})
+
+    async def test_ws_action_save_and_delete(self) -> None:
+        """Test saving and deleting an action via WS."""
+        msg_save = {
+            "id": 14,
+            "type": "safety_monitor/action/save",
+            "action": {
+                "name": "Sirene Test",
+                "service": "siren.turn_on",
+                "target": {"entity_id": ["siren.alarm"]},
+                "data": {},
+                "phase": "acoustic_optical",
+                "trigger_types": ["smoke"],
+            },
+        }
+        await ws_save_action(self.hass, self.connection, msg_save)
+        self.coordinator.async_update_listeners.assert_called_once()
+        self.connection.send_result.assert_called_once()
+        res = self.connection.send_result.call_args[0][1]
+        self.assertIn("action", res)
+        saved_action = res["action"]
+        self.assertEqual(saved_action["name"], "Sirene Test")
+        action_id = saved_action["id"]
+
+        # Delete
+        self.connection.send_result.reset_mock()
+        self.coordinator.async_update_listeners.reset_mock()
+        msg_del = {
+            "id": 15,
+            "type": "safety_monitor/action/delete",
+            "action_id": action_id,
+        }
+        await ws_delete_action(self.hass, self.connection, msg_del)
+        self.coordinator.async_update_listeners.assert_called_once()
+        self.connection.send_result.assert_called_once_with(15, {"success": True})
+        self.assertIsNone(self.storage.async_get_action(action_id))
+
+    async def test_ws_action_test(self) -> None:
+        """Test executing action test via WS with action_id and unsaved draft action dict."""
+        # Test with draft action dict (from modal test button)
+        msg_dict = {
+            "id": 16,
+            "type": "safety_monitor/action/test",
+            "action": {
+                "name": "Draft Notify",
+                "service": "notify.notify",
+                "target": {},
+                "data": {"message": "Test"},
+                "trigger_types": ["smoke"],
+            },
+        }
+        await ws_test_action(self.hass, self.connection, msg_dict)
+        self.coordinator.actions.async_test_action_dict.assert_called_once()
+        self.connection.send_result.assert_called_once_with(16, {"success": True})
+
+        # Test with action_id (from actions tab card button)
+        self.connection.send_result.reset_mock()
+        msg_id = {
+            "id": 17,
+            "type": "safety_monitor/action/test",
+            "action_id": "act_existing",
+        }
+        await ws_test_action(self.hass, self.connection, msg_id)
+        self.coordinator.actions.async_test_action.assert_called_once_with("act_existing", context=None)
+        self.connection.send_result.assert_called_once_with(17, {"success": True})
 
 
 if __name__ == "__main__":
