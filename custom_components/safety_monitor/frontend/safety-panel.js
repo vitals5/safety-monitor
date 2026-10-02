@@ -218,9 +218,15 @@
       { service: "switch.turn_on", label: "Einschalten", icon: "⚡" },
       { service: "switch.toggle", label: "Umschalten", icon: "🔄" },
     ],
+    input_boolean: [
+      { service: "input_boolean.turn_off", label: "Ausschalten", icon: "🔌", recommended: true },
+      { service: "input_boolean.turn_on", label: "Einschalten", icon: "⚡" },
+      { service: "input_boolean.toggle", label: "Umschalten", icon: "🔄" },
+    ],
     fan: [
       { service: "fan.turn_off", label: "Lüfter ausschalten (Rauchstopp)", icon: "🌀", recommended: true },
       { service: "fan.turn_on", label: "Lüfter einschalten", icon: "💨" },
+      { service: "fan.toggle", label: "Umschalten", icon: "🔄" },
     ],
     cover: [
       { service: "cover.open_cover", label: "Rollladen öffnen (Fluchtweg)", icon: "🪟", recommended: true },
@@ -245,6 +251,7 @@
       { service: "media_player.play_media", label: "Audio-/Warnton abspielen", icon: "🔊", recommended: true },
       { service: "media_player.volume_set", label: "Lautstärke setzen", icon: "📢" },
       { service: "media_player.turn_on", label: "Player einschalten", icon: "▶️" },
+      { service: "media_player.turn_off", label: "Player ausschalten", icon: "⏹️" },
     ],
     lock: [
       { service: "lock.unlock", label: "Schloss entriegeln (Fluchtweg)", icon: "🔓", recommended: true },
@@ -254,14 +261,26 @@
       { service: "climate.turn_off", label: "Heizung/Klima ausschalten", icon: "❄️", recommended: true },
     ],
     script: [
-      { service: "script.turn_on", label: "Notfall-Skript ausführen", icon: "📜", recommended: true },
+      { service: "script.turn_on", label: "Notfall-Skript ausführen (Starten)", icon: "📜", recommended: true },
+      { service: "script.turn_off", label: "Skript stoppen", icon: "⏹️" },
+      { service: "script.toggle", label: "Skript umschalten", icon: "🔄" },
+      { service: "homeassistant.turn_on", label: "Ausführen (Allgemein)", icon: "⚡" },
+    ],
+    automation: [
+      { service: "automation.trigger", label: "Automation auslösen", icon: "⚙️", recommended: true },
+      { service: "automation.turn_on", label: "Automation aktivieren", icon: "⚡" },
+      { service: "automation.turn_off", label: "Automation deaktivieren", icon: "🔌" },
     ],
     scene: [
       { service: "scene.turn_on", label: "Notfall-Szene aktivieren", icon: "🎬", recommended: true },
     ],
+    camera: [
+      { service: "camera.snapshot", label: "Kamera-Schnappschuss erstellen", icon: "📷", recommended: true },
+      { service: "camera.record", label: "Kamera-Aufnahme starten", icon: "🎥" },
+    ],
     homeassistant: [
-      { service: "homeassistant.turn_off", label: "Ausschalten", icon: "🔌" },
-      { service: "homeassistant.turn_on", label: "Einschalten", icon: "⚡" },
+      { service: "homeassistant.turn_off", label: "Gerät ausschalten", icon: "🔌", recommended: true },
+      { service: "homeassistant.turn_on", label: "Gerät einschalten", icon: "⚡" },
     ]
   };
 
@@ -519,34 +538,37 @@
     _getServicesForDomain(domain) {
       const services = [];
       const seen = new Set();
+      const dom = (domain || "").trim().toLowerCase();
 
-      // 1. Check STANDARD_SERVICES first
-      const std = (STANDARD_SERVICES && STANDARD_SERVICES[domain]) || [];
-      std.forEach(s => {
-        services.push(s);
-        seen.add(s.service);
-      });
-
-      // 2. Discover dynamically from Home Assistant services registry
-      if (this._hass && this._hass.services && domain) {
-        const domServices = this._hass.services[domain];
-        if (domServices && typeof domServices === 'object') {
-          Object.keys(domServices).forEach(srvName => {
-            const fullSrv = `${domain}.${srvName}`;
-            if (!seen.has(fullSrv)) {
-              seen.add(fullSrv);
-              const desc = (domServices[srvName] && domServices[srvName].name) || srvName;
-              services.push({
-                service: fullSrv,
-                label: desc,
-                icon: this._getDomainIcon(domain),
-              });
-            }
-          });
-        }
+      // 1. If a known domain is provided, load its standard curated services
+      if (dom && STANDARD_SERVICES[dom]) {
+        STANDARD_SERVICES[dom].forEach(s => {
+          services.push(s);
+          seen.add(s.service);
+        });
       }
 
-      // If domain is empty or no services found, provide general emergency services
+      // 2. Dynamic discovery: ONLY for notify mobile apps (e.g. notify.mobile_app_*)
+      // NEVER dump user scripts (script.*), internal HA system calls, or unrelated services!
+      if (dom === "notify" && this._hass && this._hass.services && this._hass.services.notify) {
+        const notifyServices = this._hass.services.notify;
+        Object.keys(notifyServices).forEach(srvName => {
+          const fullSrv = `notify.${srvName}`;
+          if (!seen.has(fullSrv) && (srvName.startsWith("mobile_app_") || srvName.includes("notify"))) {
+            seen.add(fullSrv);
+            const friendly = srvName.startsWith("mobile_app_")
+              ? `Push an Smartphone (${srvName.replace("mobile_app_", "").replace(/_/g, " ")})`
+              : srvName;
+            services.push({
+              service: fullSrv,
+              label: friendly,
+              icon: "📱",
+            });
+          }
+        });
+      }
+
+      // 3. Fallback: If domain is empty (no target entered yet) or unknown domain, provide curated emergency services
       if (services.length === 0) {
         [
           { service: "valve.close_valve", label: "Ventil schließen (Notabschaltung)", icon: "🚪", recommended: true },
@@ -554,9 +576,12 @@
           { service: "switch.turn_off", label: "Schalter/Strom trennen", icon: "🔌", recommended: true },
           { service: "cover.open_cover", label: "Rollladen öffnen (Fluchtweg)", icon: "🪟", recommended: true },
           { service: "siren.turn_on", label: "Sirene einschalten (Alarm)", icon: "🚨", recommended: true },
-          { service: "light.turn_on", label: "Licht einschalten (Rot)", icon: "💡", recommended: true },
+          { service: "light.turn_on", label: "Licht einschalten (Notbeleuchtung/Rot)", icon: "💡", recommended: true },
           { service: "notify.notify", label: "Standard Push-Benachrichtigung", icon: "📱", recommended: true },
+          { service: "script.turn_on", label: "Notfall-Skript ausführen", icon: "📜" },
+          { service: "scene.turn_on", label: "Notfall-Szene aktivieren", icon: "🎬" },
           { service: "homeassistant.turn_off", label: "Gerät ausschalten", icon: "🔌" },
+          { service: "homeassistant.turn_on", label: "Gerät einschalten", icon: "⚡" },
         ].forEach(s => services.push(s));
       }
 
@@ -3058,6 +3083,8 @@
             const firstEid = val.split(',')[0].trim();
             if (firstEid.includes('.')) {
               updateServicesDropdown(firstEid.split('.')[0]);
+            } else {
+              updateServicesDropdown('');
             }
           });
 
