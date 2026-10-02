@@ -1359,7 +1359,7 @@
             align-items: center;
             justify-content: space-between;
             gap: 12px;
-            padding: 12px 0;
+            padding: 10px 0;
             border-bottom: 1px solid var(--divider-color, rgba(127, 127, 127, 0.15));
             flex-wrap: wrap;
           }
@@ -1367,8 +1367,8 @@
             border-bottom: none;
           }
           .action-item-info {
-            flex: 1 1 240px;
-            min-width: 0;
+            flex: 1 1 auto;
+            min-width: 200px;
             word-break: break-word;
           }
           .action-item-btns {
@@ -1382,11 +1382,18 @@
             .action-item-row {
               flex-direction: column;
               align-items: flex-start;
+              gap: 8px;
+              padding: 10px 0;
+            }
+            .action-item-info {
+              flex: 0 0 auto;
+              width: 100%;
+              min-width: 0;
             }
             .action-item-btns {
               width: 100%;
               justify-content: flex-start;
-              margin-top: 6px;
+              margin-top: 2px;
             }
           }
           .repeat-badge {
@@ -2100,13 +2107,23 @@
           const repeatBadge = (a.repeat_interval && a.repeat_interval > 0)
             ? `<span class="repeat-badge" title="Wiederholung alle ${a.repeat_interval} Sekunden während Alarm">🔄 alle ${a.repeat_interval}s</span>`
             : '';
+          const targetEntities = a.target && a.target.entity_id
+            ? (Array.isArray(a.target.entity_id) ? a.target.entity_id.filter(Boolean) : [a.target.entity_id].filter(Boolean))
+            : [];
+          let targetDisplay = '';
+          if (targetEntities.length > 0) {
+            targetDisplay = ` · Ziel: <code>${targetEntities.join(', ')}</code>`;
+          } else if (a.service && !a.service.startsWith('notify.')) {
+            targetDisplay = ` · Ziel: <span style="color: var(--warning-color, #ff9800); font-size: 11px;">⚠️ Nicht festgelegt</span>`;
+          }
+
           return `
             <div class="action-item-row">
               <div class="action-item-info">
                 <strong>${a.name}</strong> <span style="font-size: 12px; color: var(--secondary-text-color, #757575);">(${a.service})</span>${repeatBadge}<br>
-                <small style="color: var(--secondary-text-color, #757575);">
+                <small style="color: var(--secondary-text-color, #757575); line-height: 1.4; display: inline-block; margin-top: 2px;">
                   Gefahrentypen: ${(a.trigger_types && a.trigger_types.length > 0) ? a.trigger_types.map(t => this._getTypeName(t)).join(', ') : 'Alle'}
-                  ${(a.target && a.target.entity_id) ? ` · Ziel: <code>${Array.isArray(a.target.entity_id) ? a.target.entity_id.join(', ') : a.target.entity_id}</code>` : ''}
+                  ${targetDisplay}
                 </small>
               </div>
               <div class="action-item-btns">
