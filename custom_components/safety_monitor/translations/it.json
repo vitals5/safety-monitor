@@ -1,0 +1,54 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configurazione Safety Monitor",
+        "description": "Inizializza il sistema di monitoraggio pericoli 24/7 (Fumo, Allagamento, Gas, Monossido di carbonio, Calore). Trovati {sensors_found} sensori di pericolo in Home Assistant."
+      }
+    },
+    "abort": {
+      "already_configured": "Safety Monitor è già configurato."
+    }
+  },
+  "entity": {
+    "alarm_control_panel": {
+      "safety_monitor": {
+        "name": "Safety Monitor"
+      }
+    },
+    "binary_sensor": {
+      "hazard_detected": {
+        "name": "Pericolo rilevato"
+      },
+      "test_mode_active": {
+        "name": "Modalità test attiva"
+      }
+    },
+    "sensor": {
+      "safety_status": {
+        "name": "Stato"
+      },
+      "last_hazard": {
+        "name": "Ultimo pericolo"
+      }
+    }
+  },
+  "services": {
+    "silence": {
+      "name": "Silenzia allarme",
+      "description": "Silenzia temporaneamente sirene e luci lampeggianti senza disattivare il monitoraggio 24/7."
+    },
+    "reset": {
+      "name": "Ripristina / Conferma allarme",
+      "description": "Conferma gli avvisi di sicurezza e ripristina lo stato normale del sistema."
+    },
+    "test_mode": {
+      "name": "Attiva/Disattiva modalità test",
+      "description": "Abilita o disabilita la modalità di manutenzione e test con ripristino automatico."
+    },
+    "trigger": {
+      "name": "Attiva allarme di emergenza",
+      "description": "Attiva manualmente la sequenza completa di allarme ed evacuazione."
+    }
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configuration de Safety Monitor",
+        "description": "Initialiser le système de surveillance des risques 24/7 (Fumée, Humidité, Gaz, Monoxyde de carbone, Chaleur). {sensors_found} capteur(s) de risque trouvé(s) dans Home Assistant."
+      }
+    },
+    "abort": {
+      "already_configured": "Safety Monitor est déjà configuré."
+    }
+  },
+  "entity": {
+    "alarm_control_panel": {
+      "safety_monitor": {
+        "name": "Safety Monitor"
+      }
+    },
+    "binary_sensor": {
+      "hazard_detected": {
+        "name": "Risque détecté"
+      },
+      "test_mode_active": {
+        "name": "Mode test actif"
+      }
+    },
+    "sensor": {
+      "safety_status": {
+        "name": "État"
+      },
+      "last_hazard": {
+        "name": "Dernier risque"
+      }
+    }
+  },
+  "services": {
+    "silence": {
+      "name": "Couper l'alarme",
+      "description": "Silencie temporairement les sirènes et flashs sans désarmer la surveillance 24/7."
+    },
+    "reset": {
+      "name": "Réinitialiser / Acquitter l'alarme",
+      "description": "Acquitte les alertes de sécurité et rétablit l'état normal du système."
+    },
+    "test_mode": {
+      "name": "Basculer le mode test",
+      "description": "Active ou désactive le mode maintenance et test avec réinitialisation automatique."
+    },
+    "trigger": {
+      "name": "Déclencher l'alarme d'urgence",
+      "description": "Déclenche manuellement la séquence complète d'alarme et d'évacuation."
+    }
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Konfiguracja Safety Monitor",
+        "description": "Inicjalizacja systemu monitorowania zagrożeń 24/7 (Dym, Wilgoć/Zalanie, Gaz, Tlenek węgla, Wysoka temperatura). Znaleziono {sensors_found} czujnik(ów) zagrożeń w Home Assistant."
+      }
+    },
+    "abort": {
+      "already_configured": "Safety Monitor jest już skonfigurowany."
+    }
+  },
+  "entity": {
+    "alarm_control_panel": {
+      "safety_monitor": {
+        "name": "Safety Monitor"
+      }
+    },
+    "binary_sensor": {
+      "hazard_detected": {
+        "name": "Wykryto zagrożenie"
+      },
+      "test_mode_active": {
+        "name": "Tryb testowy aktywny"
+      }
+    },
+    "sensor": {
+      "safety_status": {
+        "name": "Status"
+      },
+      "last_hazard": {
+        "name": "Ostatnie zagrożenie"
+      }
+    }
+  },
+  "services": {
+    "silence": {
+      "name": "Wycisz alarm",
+      "description": "Tymczasowo wycisza syreny i sygnalizację optyczną bez wyłączania monitorowania 24/7."
+    },
+    "reset": {
+      "name": "Resetuj / Potwierdź alarm",
+      "description": "Potwierdza alerty bezpieczeństwa i przywraca normalny stan systemu."
+    },
+    "test_mode": {
+      "name": "Przełącz tryb testowy",
+      "description": "Włącza lub wyłącza tryb testowy i konserwacyjny z automatycznym resetem."
+    },
+    "trigger": {
+      "name": "Wyzwól alarm awaryjny",
+      "description": "Ręcznie wyzwala pełną sekwencję alarmową i ewakuacyjną."
+    }
+  }
+}

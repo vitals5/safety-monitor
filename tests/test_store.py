@@ -35,6 +35,7 @@ class TestSafetyStorage(unittest.IsolatedAsyncioTestCase):
 
         # Check default settings
         settings = self.storage.async_get_settings()
+        self.assertEqual(settings.get("language"), "auto")
         self.assertEqual(settings.get("test_mode"), False)
         self.assertEqual(settings.get("test_mode_timeout"), 900)
         self.assertEqual(settings.get("history_default_time"), "24h")

@@ -1,0 +1,54 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Safety Monitor Installation",
+        "description": "Initiera 24/7 säkerhets- och riskövervakningssystemet (Rök, Fukt/Vatten, Gas, Kolmonoxid, Värme). Hittade {sensors_found} kompatibla risksensor(er) i Home Assistant."
+      }
+    },
+    "abort": {
+      "already_configured": "Safety Monitor är redan konfigurerad."
+    }
+  },
+  "entity": {
+    "alarm_control_panel": {
+      "safety_monitor": {
+        "name": "Safety Monitor"
+      }
+    },
+    "binary_sensor": {
+      "hazard_detected": {
+        "name": "Fara upptäckt"
+      },
+      "test_mode_active": {
+        "name": "Testläge aktivt"
+      }
+    },
+    "sensor": {
+      "safety_status": {
+        "name": "Status"
+      },
+      "last_hazard": {
+        "name": "Senaste fara"
+      }
+    }
+  },
+  "services": {
+    "silence": {
+      "name": "Tysta larm",
+      "description": "Tystar tillfälligt sirener och blixtljus utan att avaktivera 24/7-övervakningen."
+    },
+    "reset": {
+      "name": "Återställ / Kvittera larm",
+      "description": "Kvitterar säkerhetslarm och återställer systemet till normalt läge."
+    },
+    "test_mode": {
+      "name": "Växla testläge",
+      "description": "Aktiverar eller inaktiverar test- och underhållsläge med automatisk återställning."
+    },
+    "trigger": {
+      "name": "Utlös nödlarm",
+      "description": "Utlöser manuellt hela larm- och evakueringssekvensen."
+    }
+  }
+}

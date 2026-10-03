@@ -1,0 +1,54 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Safety Monitor Installatie",
+        "description": "Initialiseer het 24/7 gevaarmonitoringsysteem (Rook, Vocht, Gas, Koolmonoxide, Hitte). {sensors_found} geschikte gevaarsensor(en) gevonden in Home Assistant."
+      }
+    },
+    "abort": {
+      "already_configured": "Safety Monitor is al geconfigureerd."
+    }
+  },
+  "entity": {
+    "alarm_control_panel": {
+      "safety_monitor": {
+        "name": "Safety Monitor"
+      }
+    },
+    "binary_sensor": {
+      "hazard_detected": {
+        "name": "Gevaar gedetecteerd"
+      },
+      "test_mode_active": {
+        "name": "Testmodus actief"
+      }
+    },
+    "sensor": {
+      "safety_status": {
+        "name": "Status"
+      },
+      "last_hazard": {
+        "name": "Laatste gevaar"
+      }
+    }
+  },
+  "services": {
+    "silence": {
+      "name": "Alarm dempen",
+      "description": "Dempt tijdelijk sirenes en flitslichten zonder de 24/7 monitoring uit te schakelen."
+    },
+    "reset": {
+      "name": "Alarm resetten / bevestigen",
+      "description": "Bevestigt veiligheidswaarschuwingen en herstelt de normale systeemstatus."
+    },
+    "test_mode": {
+      "name": "Testmodus schakelen",
+      "description": "Schakelt onderhouds- en testmodus in of uit met automatische reset."
+    },
+    "trigger": {
+      "name": "Noodalarm activeren",
+      "description": "Activeert handmatig de volledige alarm- en evacuatiesequentie."
+    }
+  }
+}

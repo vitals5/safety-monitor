@@ -77,6 +77,7 @@ While intrusion alarm systems are built around manual arming states (*Armed Away
   * Automatically inspects result sensors (`sensor.*_last_self_test`) for success or failure.
   * Schedule automatic monthly self-tests to run unattended on a designated day and time.
 * **📜 Advanced Event Log with Filtering**: Filter historical events by category (Alarms, Silenced, Resets, Self-Tests, Drills, Battery, Offline) and time periods (Last 1h, 6h, 12h, **Max. 24 Hours**, 3 Days, or All).
+* **🌍 Multi-Language Support**: Fully localized in 10 major community languages: **English**, **Deutsch (German)**, **Français (French)**, **Español (Spanish)**, **Italiano (Italian)**, **Nederlands (Dutch)**, **Polski (Polish)**, **Português (Portuguese)**, **Русский (Russian)**, and **Svenska (Swedish)**. Automatically adapts to your Home Assistant user language or can be customized in *Zones & Settings*.
 * **💻 Dedicated Custom Sidebar Dashboard**: Clean Lit / Web Component panel in Home Assistant's sidebar for complete sensor, zone, and action configuration without writing YAML.
 
 ---
