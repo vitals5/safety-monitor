@@ -10,7 +10,9 @@
 While intrusion alarm systems are built around manual arming states (*Armed Away*, *Armed Home*, *Exit Delay*), critical hazard and property protection sensors (**Smoke, Water Leakage, Combustible Gas, Carbon Monoxide, and Extreme Heat**) require **24/7 Always-On** vigilance, phased escalation (shutoffs, priority push, sirens, post-alarm restore), false-alarm suppression (double-knock verification, pre-alarm delays), and proactive maintenance auditing (battery warnings, offline detection, automated monthly self-tests).
 
 <p align="center">
-  <img src="images/safety_monitor_overview.jpg" alt="Safety Monitor Dashboard & Event Log" width="400">
+  <img src="images/safety_monitor_overview.jpg" alt="Safety Monitor - All Clear & Safe" width="380">
+  &nbsp;&nbsp;
+  <img src="images/safety_monitor_alarm.jpg" alt="Safety Monitor - Acute Hazard Alarm Active" width="380">
 </p>
 
 ---
