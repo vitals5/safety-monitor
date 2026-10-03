@@ -4343,13 +4343,15 @@
               ` : (state === 'silenced' && activeTriggers.length > 0) ? `
                 <button class="btn-ctl" id="btn-silence">🔕 ${this._t("btnSilenceAgain")}</button>
               ` : ''}
-              ${state !== 'normal' ? `
+              ${(state === 'triggered' || state === 'pre_alarm' || state === 'silenced') ? `
                 <button class="btn-ctl" id="btn-reset">🔄 ${this._t("btnReset")}</button>
               ` : ''}
-              ${(state === 'normal' || state === 'testing') ? `
+              ${state === 'normal' ? `
                 <button class="btn-ctl" id="btn-test-mode">
-                  🧪 ${state === 'testing' ? this._t("btnExitTestMode") : this._t("btnTestMode")}
+                  🧪 ${this._t("btnTestMode")}
                 </button>
+              ` : ''}
+              ${(state === 'normal' || state === 'testing') ? `
                 <button class="btn-ctl danger" id="btn-manual-trigger">
                   🚨 ${this._t("btnManualTrigger")}
                 </button>
