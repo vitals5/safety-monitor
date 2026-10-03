@@ -483,15 +483,68 @@ class ActionEngine:
         }
 
         if is_system:
-            ctx.update({
-                "event": "battery_low",
-                "event_type": "battery_low",
-                "battery_level": 12,
-                "threshold": 15,
-                "battery_entity": f"{entity_id}_battery",
-                "title": f"🪫 Schwache Batterie: {sensor_name}",
-                "message": f"Der Sicherheitsmelder '{sensor_name}' in Zone '{zone_name}' meldet einen schwachen Batteriestand von 12%!",
-            })
+            action_name = str(action.get("name", "")).lower()
+            action_data_str = str(action.get("data", "")).lower()
+
+            is_self_test = (
+                "self_test_failed" in (trigger_types or [])
+                and (
+                    "battery_low" not in (trigger_types or [])
+                    or any(k in action_name or k in action_data_str for k in ("test", "selbsttest", "failed"))
+                )
+            ) or (
+                "self_test" in action_name or "selbsttest" in action_name
+            )
+
+            is_offline = (
+                not is_self_test
+                and "sensor_offline" in (trigger_types or [])
+                and (
+                    "battery_low" not in (trigger_types or [])
+                    or any(k in action_name or k in action_data_str for k in ("offline", "nicht erreichbar", "unavailable"))
+                )
+            ) or (
+                not is_self_test and ("offline" in action_name or "nicht erreichbar" in action_name)
+            )
+
+            if is_self_test:
+                state = "self_test_failed"
+                smart_hazard = SmartHazardType("Selbsttest-Fehler", "self_test_failed")
+                ctx.update({
+                    "hazard_type": smart_hazard,
+                    "event": "self_test_failed",
+                    "event_type": "self_test_failed",
+                    "failed_count": 1,
+                    "failed_sensors": f"{sensor_name} ({zone_name})",
+                    "title": "🧪 Selbsttest fehlgeschlagen",
+                    "message": f"Achtung: Selbsttest fehlgeschlagen bei folgenden Meldern: {sensor_name} ({zone_name})!",
+                    "state": state,
+                })
+            elif is_offline:
+                state = "offline"
+                smart_hazard = SmartHazardType("Melder Offline", "sensor_offline")
+                ctx.update({
+                    "hazard_type": smart_hazard,
+                    "event": "sensor_offline",
+                    "event_type": "sensor_offline",
+                    "failed_count": 1,
+                    "failed_sensors": f"{sensor_name} ({zone_name})",
+                    "title": f"📡 Melder Offline: {sensor_name}",
+                    "message": f"Der Sicherheitsmelder '{sensor_name}' in Zone '{zone_name}' ist nicht erreichbar (offline)!",
+                    "state": state,
+                })
+            else:
+                ctx.update({
+                    "event": "battery_low",
+                    "event_type": "battery_low",
+                    "battery_level": 12,
+                    "threshold": 15,
+                    "battery_entity": f"{entity_id}_battery",
+                    "title": f"🪫 Schwache Batterie: {sensor_name}",
+                    "message": f"Der Sicherheitsmelder '{sensor_name}' in Zone '{zone_name}' meldet einen schwachen Batteriestand von 12%!",
+                    "failed_sensors": f"{sensor_name} ({zone_name})",
+                    "failed_count": 1,
+                })
 
         return ctx
 

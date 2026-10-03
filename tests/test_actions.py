@@ -436,6 +436,75 @@ class TestActionEngine(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Schwache Batterie", payload["title"])
         self.assertIn("Event: battery_low", payload["message"])
 
+    async def test_execute_system_phase_self_test_filter(self) -> None:
+        """Test executing PHASE_SYSTEM with trigger_types filter for self_test_failed."""
+        await self.storage.async_save_action({
+            "id": "act_self_test",
+            "name": "Selbsttest Push Alert",
+            "phase": PHASE_SYSTEM,
+            "service": "notify.notify",
+            "data": {
+                "title": "{{ title }}",
+                "message": "Fehler: {{ failed_sensors }} (Anzahl: {{ failed_count }})",
+            },
+            "enabled": True,
+            "trigger_types": ["self_test_failed"],
+        })
+        await self.storage.async_save_action({
+            "id": "act_battery_only",
+            "name": "Nur Batterie",
+            "phase": PHASE_SYSTEM,
+            "service": "notify.notify",
+            "data": {"message": "Batterie leer"},
+            "enabled": True,
+            "trigger_types": ["battery_low"],
+        })
+
+        context = {
+            "sensor_name": "Rauchmelder Flur",
+            "zone": "Flur",
+            "event": "self_test_failed",
+            "event_type": "self_test_failed",
+            "failed_count": 1,
+            "failed_sensors": "Rauchmelder Flur (Flur)",
+            "title": "🧪 Selbsttest fehlgeschlagen",
+            "message": "Selbsttest fehlgeschlagen!",
+        }
+
+        executed = await self.engine.async_execute_phase(PHASE_SYSTEM, context)
+        self.assertIn("act_self_test", executed)
+        self.assertNotIn("act_battery_only", executed)
+
+        calls = self.hass.services.async_call.call_args_list
+        notify_call = next((c for c in reversed(calls) if c[0][0] == "notify" and c[0][1] == "notify"), None)
+        self.assertIsNotNone(notify_call)
+        payload = notify_call[0][2]
+        self.assertIn("Rauchmelder Flur (Flur)", payload["message"])
+        self.assertIn("Anzahl: 1", payload["message"])
+
+    async def test_manual_test_action_system_phase_self_test(self) -> None:
+        """Test manual testing of a self-test system action provides failed_sensors context."""
+        action_dict = {
+            "name": "Test Selbsttest Notif",
+            "phase": PHASE_SYSTEM,
+            "service": "notify.notify",
+            "data": {
+                "title": "{{ title }}",
+                "message": "Melder: {{ failed_sensors }} / Anzahl: {{ failed_count }}",
+            },
+            "trigger_types": ["self_test_failed"],
+        }
+
+        res = await self.engine.async_test_action_dict(action_dict)
+        self.assertTrue(res)
+
+        calls = self.hass.services.async_call.call_args_list
+        notify_call = next((c for c in reversed(calls) if c[0][0] == "notify" and c[0][1] == "notify"), None)
+        self.assertIsNotNone(notify_call)
+        payload = notify_call[0][2]
+        self.assertIn("Selbsttest fehlgeschlagen", payload["title"])
+        self.assertIn("Anzahl: 1", payload["message"])
+
 
     async def test_silence_turns_off_all_acoustic_optical_devices(self) -> None:
         """Test that async_execute_silence turns off sirens, lights, switches, media players, and booleans."""

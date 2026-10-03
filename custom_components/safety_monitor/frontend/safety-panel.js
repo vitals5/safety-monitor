@@ -71,9 +71,14 @@
       phaseAcousticDesc: "Auslösen lauter Sirenen, rotes Notfall-Licht und TTS-Sprachausgabe.",
       phaseRestore: "Stufe 4: Entwarnung & Rücksetzen (Nach Alarm)",
       phaseRestoreDesc: "Wird nach Alarm-Rücksetzen ausgeführt: Rücksetzen normaler Beleuchtung, Lüftung wieder aktivieren oder 'Alles Sicher'-Entwarnungs-Push senden.",
-      phaseSystem: "Stufe 5: Wartung & Systemwarnungen (Batterie & Offline)",
-      phaseSystemDesc: "Wird bei schwachem Batteriestand (< 15%) oder nicht erreichbaren (offline) Meldern ausgeführt (z. B. Push-Meldung).",
+      phaseSystem: "Stufe 5: Wartung & Systemwarnungen (Batterie, Offline & Selbsttest)",
+      phaseSystemDesc: "Wird bei schwachem Batteriestand (< 15%), nicht erreichbaren (offline) Meldern oder fehlgeschlagenen Selbsttests ausgeführt (z. B. Push-Meldung).",
       presetSystem: "🛠️ Systemmeldung",
+      presetSelfTestFailed: "🧪 Selbsttest-Fehler",
+      eventBatteryLow: "Schwache Batterie",
+      eventSensorOffline: "Melder Offline",
+      eventSelfTestFailed: "Selbsttest fehlgeschlagen",
+      actionSystemEvents: "Auslösen bei folgenden System-Ereignissen:",
       testAction: "Testen",
       edit: "Bearbeiten",
       delete: "Löschen",
@@ -220,9 +225,14 @@
       phaseAcousticDesc: "Trigger loud sirens, flashing emergency red lighting, and TTS announcements.",
       phaseRestore: "Phase 4: All-Clear & Restore (Post-Alarm)",
       phaseRestoreDesc: "Executed upon alarm reset: Restoring normal lighting, restarting ventilation, or sending an all-clear notification.",
-      phaseSystem: "Phase 5: Maintenance & System Alerts (Battery & Offline)",
-      phaseSystemDesc: "Triggered on low battery (< 15%) or when a detector goes offline (e.g. maintenance push notification).",
+      phaseSystem: "Phase 5: Maintenance & System Alerts (Battery, Offline & Self-Test)",
+      phaseSystemDesc: "Triggered on low battery (< 15%), detector offline, or failed detector self-tests (e.g. maintenance push notification).",
       presetSystem: "🛠️ System Alert",
+      presetSelfTestFailed: "🧪 Self-Test Failure",
+      eventBatteryLow: "Low Battery",
+      eventSensorOffline: "Sensor Offline",
+      eventSelfTestFailed: "Self-Test Failed",
+      actionSystemEvents: "Trigger for following system events:",
       testAction: "Test",
       edit: "Edit",
       delete: "Delete",
@@ -425,6 +435,10 @@
     system_warning: JSON.stringify({
       title: "⚠️ Systemmeldung: {{ sensor_name }}",
       message: "{{ message }}"
+    }, null, 2),
+    self_test_failed: JSON.stringify({
+      title: "🧪 Selbsttest fehlgeschlagen ({{ failed_count }} Melder)",
+      message: "Achtung: Selbsttest fehlgeschlagen bei folgenden Meldern: {{ failed_sensors }}!"
     }, null, 2)
   };
 
@@ -833,6 +847,9 @@
         case "gas": return "☣️";
         case "carbon_monoxide": return "⚠️";
         case "heat": return "🌡️";
+        case "battery_low": return "🪫";
+        case "sensor_offline": return "📡";
+        case "self_test_failed": return "🧪";
         default: return "🛡️";
       }
     }
@@ -844,6 +861,9 @@
         case "gas": return this._t("typeGas");
         case "carbon_monoxide": return this._t("typeCO");
         case "heat": return this._t("typeHeat");
+        case "battery_low": return this._t("eventBatteryLow") || "Schwache Batterie";
+        case "sensor_offline": return this._t("eventSensorOffline") || "Melder Offline";
+        case "self_test_failed": return this._t("eventSelfTestFailed") || "Selbsttest fehlgeschlagen";
         default: return this._t("typeGeneric");
       }
     }
@@ -990,6 +1010,42 @@
           </div>
           ${chips}
         </div>
+      `;
+    }
+
+    _renderModalTriggerCheckboxes(phase, triggerTypes) {
+      const hasExplicitTypes = Array.isArray(triggerTypes) && triggerTypes.length > 0;
+      if (phase === 'system') {
+        const isChecked = (val) => !hasExplicitTypes || triggerTypes.includes(val);
+        return `
+          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
+            <input type="checkbox" class="act-type-cb" value="battery_low" ${isChecked('battery_low') ? 'checked' : ''}> 🪫 ${this._t("eventBatteryLow")}
+          </label>
+          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
+            <input type="checkbox" class="act-type-cb" value="sensor_offline" ${isChecked('sensor_offline') ? 'checked' : ''}> 📡 ${this._t("eventSensorOffline")}
+          </label>
+          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
+            <input type="checkbox" class="act-type-cb" value="self_test_failed" ${isChecked('self_test_failed') ? 'checked' : ''}> 🧪 ${this._t("eventSelfTestFailed")}
+          </label>
+        `;
+      }
+      const isChecked = (val) => !hasExplicitTypes || triggerTypes.includes(val);
+      return `
+        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
+          <input type="checkbox" class="act-type-cb" value="smoke" ${isChecked('smoke') ? 'checked' : ''}> 🔥 ${this._t("typeSmoke")}
+        </label>
+        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
+          <input type="checkbox" class="act-type-cb" value="moisture" ${isChecked('moisture') ? 'checked' : ''}> 💧 ${this._t("typeMoisture")}
+        </label>
+        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
+          <input type="checkbox" class="act-type-cb" value="gas" ${isChecked('gas') ? 'checked' : ''}> ☣️ ${this._t("typeGas")}
+        </label>
+        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
+          <input type="checkbox" class="act-type-cb" value="carbon_monoxide" ${isChecked('carbon_monoxide') ? 'checked' : ''}> ⚠️ ${this._t("typeCO")}
+        </label>
+        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
+          <input type="checkbox" class="act-type-cb" value="heat" ${isChecked('heat') ? 'checked' : ''}> 🌡️ ${this._t("typeHeat")}
+        </label>
       `;
     }
 
@@ -2770,7 +2826,7 @@
               <div class="action-item-info">
                 <strong>${a.name}</strong> <span style="font-size: 12px; color: var(--secondary-text-color, #757575);">(${a.service})</span>${repeatBadge}<br>
                 <small style="color: var(--secondary-text-color, #757575); line-height: 1.4; display: inline-block; margin-top: 2px;">
-                  Gefahrentypen: ${(a.trigger_types && a.trigger_types.length > 0) ? a.trigger_types.map(t => this._getTypeName(t)).join(', ') : 'Alle'}
+                  ${a.phase === 'system' ? 'System-Ereignisse' : 'Gefahrentypen'}: ${(a.trigger_types && a.trigger_types.length > 0) ? a.trigger_types.map(t => `${this._getTypeIcon(t)} ${this._getTypeName(t)}`).join(', ') : 'Alle'}
                   ${targetDisplay}
                 </small>
               </div>
@@ -3190,8 +3246,11 @@
                   <option value="restore" ${a.phase === 'restore' ? 'selected' : ''}>🔄 ${this._t("phaseRestore")}</option>
                   <option value="system" ${a.phase === 'system' ? 'selected' : ''}>🛠️ ${this._t("phaseSystem")}</option>
                 </select>
-                <small style="color: var(--secondary-text-color, #757575); font-size: 11px; display: block; margin-top: 4px;">
-                  Stufe 1: Notfall-Aktoren. Stufe 2: Push-Meldungen. Stufe 3: Sirenen/Licht. Stufe 4: Nach Alarm (Entwarnung). Stufe 5: Systemmeldungen (Batterie & Offline).
+                <small style="color: var(--secondary-text-color, #757575); font-size: 11px; display: block; margin-top: 4px;" id="modal-act-phase-desc">
+                  ${a.phase === 'system'
+                    ? "Stufe 5: System- & Wartungsmeldungen bei schwacher Batterie, Offline-Meldern oder fehlgeschlagenen Selbsttests."
+                    : "Stufe 1: Notfall-Aktoren. Stufe 2: Push-Meldungen. Stufe 3: Sirenen/Licht. Stufe 4: Nach Alarm (Entwarnung). Stufe 5: Systemmeldungen (Batterie, Offline & Selbsttest)."
+                  }
                 </small>
               </div>
 
@@ -3222,25 +3281,13 @@
                 </small>
               </div>
 
-              <!-- Hazard Types -->
-              <div class="form-group">
-                <label class="form-label">Auslösen bei folgenden Gefahrentypen</label>
-                <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px;">
-                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
-                    <input type="checkbox" class="act-type-cb" value="smoke" ${(!a.trigger_types || a.trigger_types.includes('smoke')) ? 'checked' : ''}> 🔥 ${this._t("typeSmoke")}
-                  </label>
-                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
-                    <input type="checkbox" class="act-type-cb" value="moisture" ${(!a.trigger_types || a.trigger_types.includes('moisture')) ? 'checked' : ''}> 💧 ${this._t("typeMoisture")}
-                  </label>
-                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
-                    <input type="checkbox" class="act-type-cb" value="gas" ${(!a.trigger_types || a.trigger_types.includes('gas')) ? 'checked' : ''}> ☣️ ${this._t("typeGas")}
-                  </label>
-                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
-                    <input type="checkbox" class="act-type-cb" value="carbon_monoxide" ${(!a.trigger_types || a.trigger_types.includes('carbon_monoxide')) ? 'checked' : ''}> ⚠️ ${this._t("typeCO")}
-                  </label>
-                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
-                    <input type="checkbox" class="act-type-cb" value="heat" ${(!a.trigger_types || a.trigger_types.includes('heat')) ? 'checked' : ''}> 🌡️ ${this._t("typeHeat")}
-                  </label>
+              <!-- Hazard / Event Types -->
+              <div class="form-group" id="modal-act-types-group">
+                <label class="form-label" id="modal-act-types-label">
+                  ${a.phase === 'system' ? (this._t("actionSystemEvents") || "Auslösen bei folgenden System-Ereignissen:") : (this._t("actionTriggerTypes") || "Auslösen bei folgenden Gefahrentypen:")}
+                </label>
+                <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px;" id="modal-act-types-container">
+                  ${this._renderModalTriggerCheckboxes(a.phase, a.trigger_types)}
                 </div>
               </div>
 
@@ -3329,6 +3376,7 @@
                     <button type="button" class="btn-data-preset data-preset-btn" data-preset="all_clear">${this._t("presetAllClear")}</button>
                     <button type="button" class="btn-data-preset data-preset-btn" data-preset="script">${this._t("presetScript")}</button>
                     <button type="button" class="btn-data-preset data-preset-btn" data-preset="system_warning">${this._t("presetSystem")}</button>
+                    <button type="button" class="btn-data-preset data-preset-btn" data-preset="self_test_failed">${this._t("presetSelfTestFailed")}</button>
                   </div>
                 </div>
 
@@ -3340,14 +3388,16 @@
                   <div style="display: flex; flex-wrap: wrap; gap: 6px;">
                     <span class="btn-data-var data-var-chip" data-var="{{ sensor_name }}" title="Name des auslösenden Sensors">+ {{ sensor_name }}</span>
                     <span class="btn-data-var data-var-chip" data-var="{{ zone }}" title="Gefahrenzone / Raum">+ {{ zone }}</span>
-                    <span class="btn-data-var data-var-chip" data-var="{{ hazard_type }}" title="Gefahrentyp (z. B. Rauch, Wasserleckage)">+ {{ hazard_type }}</span>
+                    <span class="btn-data-var data-var-chip" data-var="{{ hazard_type }}" title="Gefahrentyp (z. B. Rauch, Wasserleckage, Selbsttest-Fehler)">+ {{ hazard_type }}</span>
                     <span class="btn-data-var data-var-chip" data-var="{{ battery_level }}" title="Batteriestand in % (z. B. 12)">+ {{ battery_level }}</span>
-                    <span class="btn-data-var data-var-chip" data-var="{{ event }}" title="Ereignis (battery_low oder sensor_offline)">+ {{ event }}</span>
+                    <span class="btn-data-var data-var-chip" data-var="{{ event }}" title="Ereignis (battery_low, sensor_offline oder self_test_failed)">+ {{ event }}</span>
+                    <span class="btn-data-var data-var-chip" data-var="{{ failed_sensors }}" title="Fehlgeschlagene Melder beim Selbsttest (z. B. Rauchmelder Schlafzimmer)">+ {{ failed_sensors }}</span>
+                    <span class="btn-data-var data-var-chip" data-var="{{ failed_count }}" title="Anzahl fehlgeschlagener Melder beim Selbsttest (z. B. 1)">+ {{ failed_count }}</span>
                     <span class="btn-data-var data-var-chip" data-var="{{ message }}" title="Automatische Status-/Warnmeldung">+ {{ message }}</span>
                     <span class="btn-data-var data-var-chip" data-var="{{ timestamp }}" title="Auslöse-Zeitpunkt (Datum + Uhrzeit)">+ {{ timestamp }}</span>
                     <span class="btn-data-var data-var-chip" data-var="{{ time }}" title="Uhrzeit (z. B. 13:45:00)">+ {{ time }}</span>
                     <span class="btn-data-var data-var-chip" data-var="{{ entity_id }}" title="Entitäts-ID des Sensors">+ {{ entity_id }}</span>
-                    <span class="btn-data-var data-var-chip" data-var="{{ state }}" title="Status (triggered / normal / battery_low / offline)">+ {{ state }}</span>
+                    <span class="btn-data-var data-var-chip" data-var="{{ state }}" title="Status (triggered / normal / battery_low / offline / self_test_failed)">+ {{ state }}</span>
                   </div>
                   <small style="color: var(--secondary-text-color, #757575); font-size: 11px; display: block; margin-top: 5px;">
                     💡 Beim Testen der Aktion werden Platzhalter automatisch durch realistische Beispieldaten passend zu den gewählten Gefahrentypen ersetzt!
@@ -4253,6 +4303,30 @@
       const actDataBadge = root.querySelector('#act-data-validation-badge');
       const actDataError = root.querySelector('#modal-act-data-error');
 
+      const actPhaseSelect = root.querySelector('#modal-act-phase');
+      if (actPhaseSelect) {
+        actPhaseSelect.addEventListener('change', (e) => {
+          const newPhase = e.target.value;
+          const typesLabel = root.querySelector('#modal-act-types-label');
+          const typesContainer = root.querySelector('#modal-act-types-container');
+          const phaseDesc = root.querySelector('#modal-act-phase-desc');
+
+          if (newPhase === 'system') {
+            if (typesLabel) typesLabel.textContent = this._t("actionSystemEvents") || "Auslösen bei folgenden System-Ereignissen:";
+            if (phaseDesc) phaseDesc.textContent = "Stufe 5: System- & Wartungsmeldungen bei schwacher Batterie, Offline-Meldern oder fehlgeschlagenen Selbsttests.";
+            if (typesContainer) {
+              typesContainer.innerHTML = this._renderModalTriggerCheckboxes('system', ['battery_low', 'sensor_offline', 'self_test_failed']);
+            }
+          } else {
+            if (typesLabel) typesLabel.textContent = this._t("actionTriggerTypes") || "Auslösen bei folgenden Gefahrentypen:";
+            if (phaseDesc) phaseDesc.textContent = "Stufe 1: Notfall-Aktoren. Stufe 2: Push-Meldungen. Stufe 3: Sirenen/Licht. Stufe 4: Nach Alarm (Entwarnung). Stufe 5: Systemmeldungen (Batterie, Offline & Selbsttest).";
+            if (typesContainer) {
+              typesContainer.innerHTML = this._renderModalTriggerCheckboxes(newPhase, ['smoke', 'moisture', 'gas', 'carbon_monoxide', 'heat']);
+            }
+          }
+        });
+      }
+
       if (actTargetInput && actServiceSelect && actDataTextarea) {
         // 1. JSON Live Validator
         const validateJson = () => {
@@ -4551,7 +4625,7 @@
 
           const target = targetRaw ? { entity_id: targetRaw.split(',').map(s => s.trim()).filter(Boolean) } : {};
           const selectedTypes = Array.from(root.querySelectorAll('.act-type-cb:checked')).map(cb => cb.value);
-          const triggerTypes = selectedTypes.length > 0 ? selectedTypes : ["smoke", "moisture", "gas", "carbon_monoxide", "heat"];
+          const triggerTypes = selectedTypes.length > 0 ? selectedTypes : (phase === 'system' ? ["battery_low", "sensor_offline", "self_test_failed"] : ["smoke", "moisture", "gas", "carbon_monoxide", "heat"]);
 
           try {
             const saveRes = await this._hass.callWS({
@@ -4661,7 +4735,7 @@
 
           const target = targetRaw ? { entity_id: targetRaw.split(',').map(s => s.trim()).filter(Boolean) } : {};
           const selectedTypes = Array.from(root.querySelectorAll('.act-type-cb:checked')).map(cb => cb.value);
-          const triggerTypes = selectedTypes.length > 0 ? selectedTypes : ["smoke", "moisture", "gas", "carbon_monoxide", "heat"];
+          const triggerTypes = selectedTypes.length > 0 ? selectedTypes : (phase === 'system' ? ["battery_low", "sensor_offline", "self_test_failed"] : ["smoke", "moisture", "gas", "carbon_monoxide", "heat"]);
 
           try {
             const res = await this._hass.callWS({
