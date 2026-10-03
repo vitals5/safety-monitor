@@ -10,7 +10,7 @@
   const TRANSLATIONS = {
     "de": {
         "appName": "Safety Monitor",
-        "subtitle": "24/7 Gefahrenmeldeanlage (Rauch, Wasser, Gas, CO)",
+        "subtitle": "Gefahrenmeldeanlage",
         "tabOverview": "Übersicht & Status",
         "tabSensors": "Sensoren",
         "tabActions": "Notfall-Aktionen",
@@ -77,6 +77,7 @@
         "thSensor": "Sensor",
         "thZone": "Zone",
         "thType": "Gefahrentyp",
+        "thTime": "Zeitpunkt",
         "thPreAlarm": "Voralarm-Verzögerung",
         "thFeatures": "Eigenschaften",
         "thStatus": "Zustand",
@@ -223,7 +224,7 @@
     },
     "en": {
         "appName": "Safety Monitor",
-        "subtitle": "24/7 Life Safety & Hazard Monitoring (Smoke, Water, Gas, CO)",
+        "subtitle": "Gefahrenmeldeanlage",
         "tabOverview": "Overview & Status",
         "tabSensors": "Sensors",
         "tabActions": "Emergency Actions",
@@ -290,6 +291,7 @@
         "thSensor": "Sensor",
         "thZone": "Zone",
         "thType": "Hazard Type",
+        "thTime": "Time",
         "thPreAlarm": "Pre-Alarm Delay",
         "thFeatures": "Features",
         "thStatus": "Status",
@@ -436,7 +438,7 @@
     },
     "fr": {
         "appName": "Safety Monitor",
-        "subtitle": "Surveillance des risques et sécurité 24/7 (Fumée, Eau, Gaz, CO)",
+        "subtitle": "Système de détection des risques",
         "tabOverview": "Aperçu & État",
         "tabSensors": "Capteurs",
         "tabActions": "Actions d'urgence",
@@ -503,6 +505,7 @@
         "thSensor": "Capteur",
         "thZone": "Zone",
         "thType": "Type de risque",
+        "thTime": "Heure",
         "thPreAlarm": "Délai de pré-alarme",
         "thFeatures": "Fonctionnalités",
         "thStatus": "État",
@@ -649,7 +652,7 @@
     },
     "es": {
         "appName": "Safety Monitor",
-        "subtitle": "Monitorización de seguridad y riesgos 24/7 (Humo, Agua, Gas, CO)",
+        "subtitle": "Sistema de detección de peligros",
         "tabOverview": "Resumen & Estado",
         "tabSensors": "Sensores",
         "tabActions": "Acciones de emergencia",
@@ -716,6 +719,7 @@
         "thSensor": "Sensor",
         "thZone": "Zona",
         "thType": "Tipo de peligro",
+        "thTime": "Hora",
         "thPreAlarm": "Retardo pre-alarma",
         "thFeatures": "Características",
         "thStatus": "Estado",
@@ -862,7 +866,7 @@
     },
     "it": {
         "appName": "Safety Monitor",
-        "subtitle": "Monitoraggio sicurezza e pericoli 24/7 (Fumo, Acqua, Gas, CO)",
+        "subtitle": "Sistema di rilevamento pericoli",
         "tabOverview": "Panoramica & Stato",
         "tabSensors": "Sensori",
         "tabActions": "Azioni di emergenza",
@@ -929,6 +933,7 @@
         "thSensor": "Sensore",
         "thZone": "Zona",
         "thType": "Tipo di pericolo",
+        "thTime": "Ora",
         "thPreAlarm": "Ritardo pre-allarme",
         "thFeatures": "Caratteristiche",
         "thStatus": "Stato",
@@ -1075,7 +1080,7 @@
     },
     "nl": {
         "appName": "Safety Monitor",
-        "subtitle": "24/7 Gevaren- & Veiligheidsbewaking (Rook, Vocht, Gas, CO)",
+        "subtitle": "Gevarenmeldsysteem",
         "tabOverview": "Overzicht & Status",
         "tabSensors": "Sensoren",
         "tabActions": "Noodacties",
@@ -1142,6 +1147,7 @@
         "thSensor": "Sensor",
         "thZone": "Zone",
         "thType": "Gevaartype",
+        "thTime": "Tijdstip",
         "thPreAlarm": "Vooralarm-vertraging",
         "thFeatures": "Functies",
         "thStatus": "Status",
@@ -1288,7 +1294,7 @@
     },
     "pl": {
         "appName": "Safety Monitor",
-        "subtitle": "Całodobowe monitorowanie zagrożeń i bezpieczeństwa (Dym, Woda, Gaz, CO)",
+        "subtitle": "System sygnalizacji zagrożeń",
         "tabOverview": "Przegląd & Status",
         "tabSensors": "Czujniki",
         "tabActions": "Działania awaryjne",
@@ -1355,6 +1361,7 @@
         "thSensor": "Czujnik",
         "thZone": "Strefa",
         "thType": "Typ zagrożenia",
+        "thTime": "Czas",
         "thPreAlarm": "Opóźnienie pre-alarmu",
         "thFeatures": "Właściwości",
         "thStatus": "Stan",
@@ -1501,7 +1508,7 @@
     },
     "pt": {
         "appName": "Safety Monitor",
-        "subtitle": "Monitorização de segurança e riscos 24/7 (Fumo, Água, Gás, CO)",
+        "subtitle": "Sistema de deteção de perigos",
         "tabOverview": "Visão Geral & Estado",
         "tabSensors": "Sensores",
         "tabActions": "Ações de Emergência",
@@ -1568,6 +1575,7 @@
         "thSensor": "Sensor",
         "thZone": "Zona",
         "thType": "Tipo de perigo",
+        "thTime": "Hora",
         "thPreAlarm": "Atraso pré-alarme",
         "thFeatures": "Recursos",
         "thStatus": "Estado",
@@ -1714,7 +1722,7 @@
     },
     "ru": {
         "appName": "Safety Monitor",
-        "subtitle": "Круглосуточный мониторинг безопасности (Дым, Вода, Газ, CO)",
+        "subtitle": "Система обнаружения опасностей",
         "tabOverview": "Обзор & Статус",
         "tabSensors": "Датчики",
         "tabActions": "Аварийные действия",
@@ -1781,6 +1789,7 @@
         "thSensor": "Датчик",
         "thZone": "Зона",
         "thType": "Тип опасности",
+        "thTime": "Время",
         "thPreAlarm": "Задержка предтревоги",
         "thFeatures": "Свойства",
         "thStatus": "Состояние",
@@ -1927,7 +1936,7 @@
     },
     "sv": {
         "appName": "Safety Monitor",
-        "subtitle": "24/7 Säkerhets- & Riskövervakning (Rök, Vatten, Gas, CO)",
+        "subtitle": "Faralarmsystem",
         "tabOverview": "Översikt & Status",
         "tabSensors": "Sensorer",
         "tabActions": "Nödåtgärder",
@@ -1994,6 +2003,7 @@
         "thSensor": "Sensor",
         "thZone": "Zon",
         "thType": "Risktyp",
+        "thTime": "Tidpunkt",
         "thPreAlarm": "Förlarmsfördröjning",
         "thFeatures": "Egenskaper",
         "thStatus": "Status",
@@ -4517,7 +4527,7 @@
                     <th>${this._t("thType")}</th>
                     <th>${this._t("thSensor")}</th>
                     <th>${this._t("thZone")}</th>
-                    <th>Zeitpunkt</th>
+                    <th>${this._t("thTime")}</th>
                     <th>${this._t("thActions")}</th>
                   </tr>
                 </thead>
