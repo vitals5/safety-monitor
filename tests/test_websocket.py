@@ -221,6 +221,21 @@ class TestWebSocketAPI(unittest.IsolatedAsyncioTestCase):
         )
         self.connection.send_result.assert_called_once_with(12, {"success": True})
 
+    async def test_ws_trigger_sensor_button_with_sensor_entity_id_fallback(self) -> None:
+        """Test triggering a sensor button via WS with legacy sensor_entity_id key."""
+        self.coordinator.async_trigger_sensor_button = AsyncMock(return_value=True)
+        msg = {
+            "id": 122,
+            "type": "safety_monitor/sensor/trigger_button",
+            "sensor_entity_id": "binary_sensor.smoke_garage",
+            "button_type": "drill",
+        }
+        await ws_trigger_sensor_button(self.hass, self.connection, msg)
+        self.coordinator.async_trigger_sensor_button.assert_called_once_with(
+            "binary_sensor.smoke_garage", "drill"
+        )
+        self.connection.send_result.assert_called_once_with(122, {"success": True})
+
     async def test_ws_ignore_sensor(self) -> None:
         """Test ignoring a sensor via WS."""
         self.coordinator.async_set_sensor_ignored = AsyncMock(return_value=True)

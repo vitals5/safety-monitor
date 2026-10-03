@@ -5,7 +5,7 @@ import os
 
 DOMAIN = "safety_monitor"
 NAME = "Safety Monitor"
-VERSION = "1.0.24"
+VERSION = "1.0.25"
 MANUFACTURER = "Safety Monitor"
 
 # Storage

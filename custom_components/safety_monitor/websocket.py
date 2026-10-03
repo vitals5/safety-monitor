@@ -515,7 +515,8 @@ async def ws_trigger_alarm(
 @websocket_api.websocket_command(
     {
         vol.Required("type"): "safety_monitor/sensor/trigger_button",
-        vol.Required("entity_id"): cv.entity_id,
+        vol.Optional("entity_id"): cv.entity_id,
+        vol.Optional("sensor_entity_id"): cv.entity_id,
         vol.Required("button_type"): vol.In(["silence", "test", "drill"]),
     }
 )
@@ -531,8 +532,13 @@ async def ws_trigger_sensor_button(
         connection.send_error(msg["id"], "not_found", "Safety Monitor not initialized")
         return
 
+    entity_id = msg.get("entity_id") or msg.get("sensor_entity_id")
+    if not entity_id:
+        connection.send_error(msg["id"], "invalid_format", "entity_id is required")
+        return
+
     success = await coordinator.async_trigger_sensor_button(
-        msg["entity_id"], msg["button_type"]
+        entity_id, msg["button_type"]
     )
     connection.send_result(msg["id"], {"success": success})
 

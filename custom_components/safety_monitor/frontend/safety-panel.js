@@ -802,7 +802,6 @@
         await this._hass.callWS({
           type: "safety_monitor/sensor/trigger_button",
           entity_id: entityId,
-          sensor_entity_id: entityId,
           button_type: buttonType,
         });
         await this._loadData();
