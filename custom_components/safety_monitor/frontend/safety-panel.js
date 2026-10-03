@@ -4346,12 +4346,14 @@
               ${state !== 'normal' ? `
                 <button class="btn-ctl" id="btn-reset">🔄 ${this._t("btnReset")}</button>
               ` : ''}
-              <button class="btn-ctl" id="btn-test-mode">
-                🧪 ${state === 'testing' ? this._t("btnExitTestMode") : this._t("btnTestMode")}
-              </button>
-              <button class="btn-ctl danger" id="btn-manual-trigger">
-                🚨 ${this._t("btnManualTrigger")}
-              </button>
+              ${(state === 'normal' || state === 'testing') ? `
+                <button class="btn-ctl" id="btn-test-mode">
+                  🧪 ${state === 'testing' ? this._t("btnExitTestMode") : this._t("btnTestMode")}
+                </button>
+                <button class="btn-ctl danger" id="btn-manual-trigger">
+                  🚨 ${this._t("btnManualTrigger")}
+                </button>
+              ` : ''}
             </div>
           </div>
         </div>
