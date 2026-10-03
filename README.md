@@ -1,8 +1,6 @@
 # 🛡️ Safety Monitor for Home Assistant
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/default)
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=vitals5&repository=safety-monitor&category=integration)
-[![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=safety_monitor)
 [![GitHub Release](https://img.shields.io/github/v/release/vitals5/safety-monitor?include_prereleases)](https://github.com/vitals5/safety-monitor/releases)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Validate](https://github.com/vitals5/safety-monitor/actions/workflows/validate.yml/badge.svg)](https://github.com/vitals5/safety-monitor/actions/workflows/validate.yml)
