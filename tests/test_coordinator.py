@@ -5,10 +5,14 @@ import asyncio
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from datetime import datetime
+
 from tests import conftest_mock  # noqa: F401
 from custom_components.safety_monitor.actions import ActionEngine
 from custom_components.safety_monitor.const import (
     EVENT_SAFETY_BATTERY_LOW,
+    EVENT_SAFETY_SELF_TEST_COMPLETED,
+    EVENT_SAFETY_SELF_TEST_FAILED,
     EVENT_SAFETY_SENSOR_OFFLINE,
     EVENT_SAFETY_SENSOR_ONLINE,
     PHASE_ACOUSTIC_OPTICAL,
@@ -748,6 +752,201 @@ class TestSafetyCoordinator(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("manual.alarm", self.coordinator.active_triggers)
         self.assertEqual(len(self.coordinator.active_triggers), 0)
 
+    async def test_sequential_self_test_success(self) -> None:
+        """Test sequential self-test completes successfully when all sensors succeed."""
+        await self.storage.async_save_sensor({
+            "entity_id": "binary_sensor.smoke_living",
+            "name": "Living Room Smoke",
+            "zone": "living",
+            "test_entity": "button.smoke_living_test",
+            "test_result_entity": "sensor.smoke_living_self_test",
+            "enabled": True,
+        })
+        await self.storage.async_save_sensor({
+            "entity_id": "binary_sensor.smoke_bed",
+            "name": "Bedroom Smoke",
+            "zone": "bed",
+            "test_entity": "button.smoke_bed_test",
+            "test_result_entity": "sensor.smoke_bed_self_test",
+            "enabled": True,
+        })
+
+        st_living = MagicMock()
+        st_living.state = "Erfolg"
+        st_living.attributes = {}
+        st_living.last_updated = datetime(2026, 10, 3, 10, 0, 1)
+
+        st_bed = MagicMock()
+        st_bed.state = "ok"
+        st_bed.attributes = {}
+        st_bed.last_updated = datetime(2026, 10, 3, 10, 0, 2)
+
+        def get_state(eid):
+            if eid == "sensor.smoke_living_self_test":
+                return st_living
+            if eid == "sensor.smoke_bed_self_test":
+                return st_bed
+            return None
+
+        self.hass.states.get = MagicMock(side_effect=get_state)
+        self.hass.services.async_call = AsyncMock()
+
+        res = await self.coordinator.async_start_self_test(step_seconds=1)
+        self.assertTrue(res["success"])
+
+        # Await test completion
+        await self.coordinator._self_test_task
+
+        status = self.coordinator.self_test_status
+        self.assertFalse(status["running"])
+        self.assertEqual(status["total"], 2)
+        self.assertEqual(status["results"]["binary_sensor.smoke_living"]["status"], "passed")
+        self.assertEqual(status["results"]["binary_sensor.smoke_bed"]["status"], "passed")
+        self.assertIsNotNone(status["finished_at"])
+
+        # Verify completion bus event was fired
+        self.hass.bus.async_fire.assert_any_call(
+            EVENT_SAFETY_SELF_TEST_COMPLETED,
+            {"passed_count": 2},
+        )
+
+    async def test_sequential_self_test_failure_notification(self) -> None:
+        """Test sequential self-test failure fires event and executes phase 5 notification."""
+        await self.storage.async_save_sensor({
+            "entity_id": "binary_sensor.smoke_living",
+            "name": "Living Room Smoke",
+            "zone": "living",
+            "test_entity": "button.smoke_living_test",
+            "test_result_entity": "sensor.smoke_living_self_test",
+            "enabled": True,
+        })
+        await self.storage.async_save_sensor({
+            "entity_id": "binary_sensor.smoke_bed",
+            "name": "Bedroom Smoke",
+            "zone": "bed",
+            "test_entity": "button.smoke_bed_test",
+            "test_result_entity": "sensor.smoke_bed_self_test",
+            "enabled": True,
+        })
+
+        st_living = MagicMock()
+        st_living.state = "Erfolg"
+        st_living.attributes = {}
+        st_living.last_updated = datetime(2026, 10, 3, 10, 0, 1)
+
+        st_bed = MagicMock()
+        st_bed.state = "Fehler"
+        st_bed.attributes = {}
+        st_bed.last_updated = datetime(2026, 10, 3, 10, 0, 2)
+
+        def get_state(eid):
+            if eid == "sensor.smoke_living_self_test":
+                return st_living
+            if eid == "sensor.smoke_bed_self_test":
+                return st_bed
+            return None
+
+        self.hass.states.get = MagicMock(side_effect=get_state)
+        self.hass.services.async_call = AsyncMock()
+
+        res = await self.coordinator.async_start_self_test(step_seconds=1)
+        self.assertTrue(res["success"])
+
+        # Await test completion
+        await self.coordinator._self_test_task
+
+        status = self.coordinator.self_test_status
+        self.assertFalse(status["running"])
+        self.assertEqual(status["results"]["binary_sensor.smoke_living"]["status"], "passed")
+        self.assertEqual(status["results"]["binary_sensor.smoke_bed"]["status"], "failed")
+
+        # Verify failure bus event was fired
+        self.hass.bus.async_fire.assert_any_call(
+            EVENT_SAFETY_SELF_TEST_FAILED,
+            {
+                "failed_count": 1,
+                "failed_sensors": ["Bedroom Smoke"],
+                "passed_count": 1,
+            },
+        )
+
+        # Verify PHASE_SYSTEM notification was called
+        phase_calls = [
+            call for call in self.actions.async_execute_phase.call_args_list
+            if call[0][0] == PHASE_SYSTEM
+        ]
+        self.assertTrue(len(phase_calls) > 0)
+        self.assertIn("Bedroom Smoke", phase_calls[-1][0][1]["message"])
+
+    async def test_sequential_self_test_cancel(self) -> None:
+        """Test cancelling a running self-test."""
+        await self.storage.async_save_sensor({
+            "entity_id": "binary_sensor.smoke_living",
+            "name": "Living Room Smoke",
+            "zone": "living",
+            "test_entity": "button.smoke_living_test",
+            "enabled": True,
+        })
+        self.hass.services.async_call = AsyncMock()
+        self.hass.states.get = MagicMock(return_value=None)
+
+        res = await self.coordinator.async_start_self_test(step_seconds=10)
+        self.assertTrue(res["success"])
+        self.assertTrue(self.coordinator.self_test_status["running"])
+
+        # Cancel immediately
+        cancel_ok = await self.coordinator.async_cancel_self_test()
+        self.assertTrue(cancel_ok)
+
+        # Let the task finish cancelling
+        try:
+            await self.coordinator._self_test_task
+        except asyncio.CancelledError:
+            pass
+
+        self.assertFalse(self.coordinator.self_test_status["running"])
+
+    async def test_auto_self_test_monthly_trigger(self) -> None:
+        """Test automated periodic monthly self-test trigger and schedule check."""
+        await self.storage.async_update_settings({
+            "auto_self_test_enabled": True,
+            "auto_self_test_day": 15,
+            "auto_self_test_time": "11:00",
+            "last_auto_self_test_date": "",
+        })
+        await self.storage.async_save_sensor({
+            "entity_id": "binary_sensor.smoke_living",
+            "name": "Living Room Smoke",
+            "zone": "living",
+            "test_entity": "button.smoke_living_test",
+            "enabled": True,
+        })
+        self.coordinator.async_start_self_test = AsyncMock()
+
+        # Day 14 -> should not trigger
+        dt_wrong_day = datetime(2026, 10, 14, 11, 0, 0)
+        await self.coordinator._async_check_auto_self_test(now=dt_wrong_day)
+        self.coordinator.async_start_self_test.assert_not_called()
+
+        # Day 15, wrong time -> should not trigger
+        dt_wrong_time = datetime(2026, 10, 15, 10, 59, 0)
+        await self.coordinator._async_check_auto_self_test(now=dt_wrong_time)
+        self.coordinator.async_start_self_test.assert_not_called()
+
+        # Day 15, 11:00 -> triggers self-test and sets date
+        dt_match = datetime(2026, 10, 15, 11, 0, 0)
+        await self.coordinator._async_check_auto_self_test(now=dt_match)
+        self.coordinator.async_start_self_test.assert_called_once_with(is_auto=True)
+
+        settings = self.storage.async_get_settings()
+        self.assertEqual(settings["last_auto_self_test_date"], "2026-10-15")
+
+        # Calling again on same day at 11:00 -> does not re-trigger
+        self.coordinator.async_start_self_test.reset_mock()
+        await self.coordinator._async_check_auto_self_test(now=dt_match)
+        self.coordinator.async_start_self_test.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
+

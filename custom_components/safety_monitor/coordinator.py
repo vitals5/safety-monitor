@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import logging
 from typing import Any, Callable
 
@@ -16,7 +16,11 @@ from homeassistant.const import (
 )
 from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_send
-from homeassistant.helpers.event import async_call_later, async_track_state_change_event
+from homeassistant.helpers.event import (
+    async_call_later,
+    async_track_state_change_event,
+    async_track_time_interval,
+)
 
 from .actions import ActionEngine, SmartHazardType, HAZARD_DISPLAY_NAMES
 
@@ -25,6 +29,9 @@ try:
 except Exception:
     dt_util = None
 from .const import (
+    DEFAULT_AUTO_SELF_TEST_DAY,
+    DEFAULT_AUTO_SELF_TEST_STEP_SECONDS,
+    DEFAULT_AUTO_SELF_TEST_TIME,
     DEFAULT_BATTERY_LOW_THRESHOLD,
     DEFAULT_DOUBLE_KNOCK_TIMEOUT,
     DEFAULT_SILENCE_DURATION,
@@ -33,6 +40,8 @@ from .const import (
     EVENT_SAFETY_ALARM_SILENCED,
     EVENT_SAFETY_ALARM_TRIGGERED,
     EVENT_SAFETY_BATTERY_LOW,
+    EVENT_SAFETY_SELF_TEST_COMPLETED,
+    EVENT_SAFETY_SELF_TEST_FAILED,
     EVENT_SAFETY_SENSOR_OFFLINE,
     EVENT_SAFETY_SENSOR_ONLINE,
     EVENT_SAFETY_SENSOR_TRIGGERED,
@@ -90,6 +99,23 @@ class SafetyCoordinator:
         self._low_battery_sensors: dict[str, dict[str, Any]] = {}
         self._notified_low_batteries: set[str] = set()
 
+        # Sequential Self-Test Runner
+        self._self_test_task: asyncio.Task | None = None
+        self._self_test_cancel_event: asyncio.Event | None = None
+        self._self_test_status: dict[str, Any] = {
+            "running": False,
+            "is_auto": False,
+            "total": 0,
+            "current_index": 0,
+            "current_sensor": "",
+            "current_sensor_name": "",
+            "step_seconds": DEFAULT_AUTO_SELF_TEST_STEP_SECONDS,
+            "results": {},
+            "started_at": None,
+            "finished_at": None,
+        }
+        self._auto_self_test_unsub: CALLBACK_TYPE | None = None
+
     @property
     def state(self) -> str:
         """Return the current hazard state."""
@@ -125,12 +151,25 @@ class SafetyCoordinator:
         """Return sensors reporting low battery levels."""
         return self._low_battery_sensors
 
+    @property
+    def self_test_status(self) -> dict[str, Any]:
+        """Return live status of the sequential self-test runner."""
+        return self._self_test_status
+
     async def async_setup(self) -> None:
         """Set up listeners and perform initial state scan."""
         await self.async_update_listeners()
         # Scan initial states of monitored sensors
         self._async_scan_initial_states()
         self._async_check_all_batteries()
+
+        # Schedule periodic check for automated monthly self-test
+        if self._auto_self_test_unsub is not None:
+            self._auto_self_test_unsub()
+            self._auto_self_test_unsub = None
+        self._auto_self_test_unsub = async_track_time_interval(
+            self.hass, self._async_check_auto_self_test, timedelta(minutes=1)
+        )
 
     async def async_update_listeners(self) -> None:
         """Re-bind event listener to all configured sensors and battery entities."""
@@ -792,6 +831,9 @@ class SafetyCoordinator:
             self._test_mode_timer = None
         await self.store.async_update_settings({"test_mode": False})
 
+        # Cancel any active self-test
+        await self.async_cancel_self_test()
+
         # Stop repeating actions
         self._cancel_repeating_actions()
 
@@ -977,6 +1019,325 @@ class SafetyCoordinator:
             "count": len(triggered),
             "triggered": triggered,
         }
+
+    async def async_start_self_test(
+        self, step_seconds: int | None = None, is_auto: bool = False
+    ) -> dict[str, Any]:
+        """Start sequential self-test of all configured sensors with test_entity."""
+        if self._self_test_task and not self._self_test_task.done():
+            _LOGGER.warning("Self-test already running")
+            return {
+                "success": False,
+                "error": "Selbsttest läuft bereits",
+                "status": self._self_test_status,
+            }
+
+        settings = self.store.async_get_settings()
+        step = step_seconds or settings.get(
+            "auto_self_test_step_seconds", DEFAULT_AUTO_SELF_TEST_STEP_SECONDS
+        )
+        sensors = self.store.async_get_sensors()
+
+        # Find all enabled sensors with test_entity
+        candidates = [
+            (eid, cfg)
+            for eid, cfg in sensors.items()
+            if cfg.get("enabled", True) and cfg.get("test_entity")
+        ]
+
+        if not candidates:
+            _LOGGER.info("No sensors with test_entity found for self-test")
+            return {
+                "success": False,
+                "error": "Keine Sensoren mit Selbsttest-Button (test_entity) konfiguriert",
+                "status": self._self_test_status,
+            }
+
+        self._self_test_cancel_event = asyncio.Event()
+        now = dt_util.now() if dt_util else datetime.now()
+        self._self_test_status = {
+            "running": True,
+            "is_auto": is_auto,
+            "total": len(candidates),
+            "current_index": 0,
+            "current_sensor": "",
+            "current_sensor_name": "",
+            "step_seconds": step,
+            "results": {
+                eid: {
+                    "entity_id": eid,
+                    "name": cfg.get("name", eid),
+                    "status": "pending",
+                    "details": "In Warteschlange",
+                }
+                for eid, cfg in candidates
+            },
+            "started_at": now.isoformat(),
+            "finished_at": None,
+        }
+        self._async_notify_update()
+
+        self._self_test_task = self.hass.async_create_task(
+            self._async_run_sequential_self_test(candidates, step, is_auto)
+        )
+        return {"success": True, "status": self._self_test_status}
+
+    async def async_cancel_self_test(self) -> bool:
+        """Cancel running self-test."""
+        if self._self_test_cancel_event:
+            self._self_test_cancel_event.set()
+        if self._self_test_task and not self._self_test_task.done():
+            self._self_test_task.cancel()
+        if self._self_test_status.get("running"):
+            self._self_test_status["running"] = False
+            self._async_notify_update()
+        return True
+
+    async def _async_run_sequential_self_test(
+        self,
+        candidates: list[tuple[str, dict[str, Any]]],
+        step_seconds: int,
+        is_auto: bool,
+    ) -> None:
+        """Run sequential self-test step by step."""
+        _LOGGER.info(
+            "Starting sequential self-test for %d sensors (step: %ds, auto: %s)",
+            len(candidates),
+            step_seconds,
+            is_auto,
+        )
+
+        # Temporary test mode to prevent false alarm actions if detector blares during test
+        was_in_test_mode = (self._state == STATE_TESTING)
+        if not was_in_test_mode:
+            await self.async_set_test_mode(
+                True, duration=max(900, len(candidates) * step_seconds + 300)
+            )
+
+        failed_sensors: list[tuple[str, str, str]] = []
+        passed_sensors: list[tuple[str, str]] = []
+
+        try:
+            for idx, (sensor_id, cfg) in enumerate(candidates):
+                if self._self_test_cancel_event and self._self_test_cancel_event.is_set():
+                    _LOGGER.info("Self-test cancelled by user")
+                    break
+
+                sensor_name = cfg.get("name", sensor_id)
+                test_result_entity = cfg.get("test_result_entity")
+
+                # Snapshot pre-test state of result entity if configured
+                pre_updated = None
+                if test_result_entity:
+                    st_obj = self.hass.states.get(test_result_entity)
+                    if st_obj:
+                        pre_updated = st_obj.last_updated
+
+                self._self_test_status["current_index"] = idx + 1
+                self._self_test_status["current_sensor"] = sensor_id
+                self._self_test_status["current_sensor_name"] = sensor_name
+                self._self_test_status["results"][sensor_id]["status"] = "testing"
+                self._self_test_status["results"][sensor_id]["details"] = "Test läuft..."
+                self._async_notify_update()
+
+                button_success = await self.async_trigger_sensor_button(
+                    sensor_id, "test"
+                )
+                if not button_success:
+                    self._self_test_status["results"][sensor_id]["status"] = "failed"
+                    self._self_test_status["results"][sensor_id]["details"] = (
+                        "Button-Aufruf fehlgeschlagen"
+                    )
+                    failed_sensors.append(
+                        (sensor_id, sensor_name, "Button-Aufruf fehlgeschlagen")
+                    )
+                    continue
+
+                # Wait for step_seconds or cancellation
+                elapsed = 0.0
+                while elapsed < step_seconds:
+                    if self._self_test_cancel_event and self._self_test_cancel_event.is_set():
+                        break
+                    await asyncio.sleep(min(1.0, max(0.1, step_seconds - elapsed)))
+                    elapsed += 1.0
+
+                    if test_result_entity:
+                        st_now = self.hass.states.get(test_result_entity)
+                        if st_now:
+                            is_updated = (
+                                pre_updated is None or st_now.last_updated > pre_updated
+                            )
+                            val_lower = str(st_now.state).lower().strip()
+                            if is_updated and val_lower in (
+                                "erfolg",
+                                "success",
+                                "ok",
+                                "passed",
+                                "true",
+                                "erfolgreich",
+                                "bestanden",
+                            ):
+                                break
+
+                if self._self_test_cancel_event and self._self_test_cancel_event.is_set():
+                    break
+
+                # Evaluate final result
+                if test_result_entity:
+                    st_final = self.hass.states.get(test_result_entity)
+                    if not st_final or st_final.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+                        reason = f"Ergebnis-Sensor '{test_result_entity}' nicht verfügbar"
+                        self._self_test_status["results"][sensor_id]["status"] = "failed"
+                        self._self_test_status["results"][sensor_id]["details"] = reason
+                        failed_sensors.append((sensor_id, sensor_name, reason))
+                    else:
+                        val_lower = str(st_final.state).lower().strip()
+                        attr_result = str(
+                            st_final.attributes.get("result", "")
+                        ).lower().strip()
+                        attr_status = str(
+                            st_final.attributes.get("status", "")
+                        ).lower().strip()
+
+                        is_success = (
+                            val_lower in ("erfolg", "success", "ok", "passed", "true", "erfolgreich", "bestanden")
+                            or attr_result in ("erfolg", "success", "ok", "passed", "true")
+                            or attr_status in ("erfolg", "success", "ok", "passed", "true")
+                        )
+                        is_failure = (
+                            val_lower in ("fehler", "error", "failed", "fehlschlag", "false")
+                            or attr_result in ("fehler", "error", "failed", "fehlschlag", "false")
+                        )
+
+                        if is_success:
+                            self._self_test_status["results"][sensor_id]["status"] = "passed"
+                            self._self_test_status["results"][sensor_id]["details"] = f"Erfolg ({st_final.state})"
+                            passed_sensors.append((sensor_id, sensor_name))
+                        elif is_failure or (pre_updated and st_final.last_updated == pre_updated):
+                            reason = f"Keine Bestätigung erhalten (Wert: {st_final.state})"
+                            self._self_test_status["results"][sensor_id]["status"] = "failed"
+                            self._self_test_status["results"][sensor_id]["details"] = reason
+                            failed_sensors.append((sensor_id, sensor_name, reason))
+                        else:
+                            self._self_test_status["results"][sensor_id]["status"] = "passed"
+                            self._self_test_status["results"][sensor_id]["details"] = f"Rückmeldung: {st_final.state}"
+                            passed_sensors.append((sensor_id, sensor_name))
+                else:
+                    self._self_test_status["results"][sensor_id]["status"] = "passed"
+                    self._self_test_status["results"][sensor_id]["details"] = "Test-Button ausgelöst"
+                    passed_sensors.append((sensor_id, sensor_name))
+
+                self._async_notify_update()
+
+        except asyncio.CancelledError:
+            _LOGGER.info("Self-test task cancelled")
+        finally:
+            self._self_test_status["running"] = False
+            now = dt_util.now() if dt_util else datetime.now()
+            self._self_test_status["finished_at"] = now.isoformat()
+
+            # Restore normal state if test mode was automatically entered
+            if not was_in_test_mode and self._state == STATE_TESTING:
+                await self.async_set_test_mode(False)
+
+            if failed_sensors:
+                failed_names = [name for _, name, _ in failed_sensors]
+                _LOGGER.warning(
+                    "Self-test finished with %d failures: %s",
+                    len(failed_sensors),
+                    ", ".join(failed_names),
+                )
+                await self.store.async_add_history(
+                    {
+                        "event": "self_test_failed",
+                        "details": f"Selbsttest fehlgeschlagen bei {len(failed_sensors)} Melder(n): {', '.join(failed_names)}",
+                    }
+                )
+                self.hass.bus.async_fire(
+                    EVENT_SAFETY_SELF_TEST_FAILED,
+                    {
+                        "failed_count": len(failed_sensors),
+                        "failed_sensors": failed_names,
+                        "passed_count": len(passed_sensors),
+                    },
+                )
+
+                settings = self.store.async_get_settings()
+                if settings.get("auto_self_test_notify", True):
+                    formatted_timestamp = now.strftime("%d.%m.%Y %H:%M:%S")
+                    formatted_time = now.strftime("%H:%M:%S")
+                    formatted_date = now.strftime("%d.%m.%Y")
+                    context = {
+                        "sensor_name": "Rauchmelder Selbsttest",
+                        "entity_id": "safety_monitor.self_test",
+                        "zone": "Alle Zonen",
+                        "zone_id": "all",
+                        "event": "self_test_failed",
+                        "event_type": "self_test_failed",
+                        "failed_count": len(failed_sensors),
+                        "failed_sensors": ", ".join(failed_names),
+                        "message": f"Achtung: Selbsttest fehlgeschlagen bei {len(failed_sensors)} Melder(n): {', '.join(failed_names)}!",
+                        "hazard_type": SmartHazardType("Selbsttest-Fehler", "self_test_failed"),
+                        "timestamp": formatted_timestamp,
+                        "time": formatted_time,
+                        "date": formatted_date,
+                        "state": "self_test_failed",
+                    }
+                    await self.actions.async_execute_phase(PHASE_SYSTEM, context)
+            else:
+                _LOGGER.info(
+                    "Self-test completed successfully for all %d sensors",
+                    len(passed_sensors),
+                )
+                await self.store.async_add_history(
+                    {
+                        "event": "self_test_success",
+                        "details": f"Selbsttest erfolgreich: Alle {len(passed_sensors)} Melder fehlerfrei",
+                    }
+                )
+                self.hass.bus.async_fire(
+                    EVENT_SAFETY_SELF_TEST_COMPLETED,
+                    {"passed_count": len(passed_sensors)},
+                )
+
+            self._async_notify_update()
+
+    async def _async_check_auto_self_test(
+        self, now: datetime | None = None
+    ) -> None:
+        """Check if scheduled monthly self-test should run."""
+        settings = self.store.async_get_settings()
+        if not settings.get("auto_self_test_enabled", False):
+            return
+
+        current_dt = now or (dt_util.now() if dt_util else datetime.now())
+        target_day = int(
+            settings.get("auto_self_test_day", DEFAULT_AUTO_SELF_TEST_DAY)
+        )
+        target_time = str(
+            settings.get("auto_self_test_time", DEFAULT_AUTO_SELF_TEST_TIME)
+        ).strip()
+
+        if current_dt.day != target_day:
+            return
+
+        current_time_str = current_dt.strftime("%H:%M")
+        if current_time_str != target_time:
+            return
+
+        today_date_str = current_dt.strftime("%Y-%m-%d")
+        if settings.get("last_auto_self_test_date") == today_date_str:
+            return
+
+        _LOGGER.info(
+            "Triggering scheduled monthly self-test for day %d at %s",
+            target_day,
+            target_time,
+        )
+        await self.store.async_update_settings(
+            {"last_auto_self_test_date": today_date_str}
+        )
+        await self.async_start_self_test(is_auto=True)
 
     async def async_set_sensor_ignored(
         self, entity_id: str, ignored: bool = True

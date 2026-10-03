@@ -45,6 +45,8 @@ def async_register_websocket_api(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_delete_sensor)
     websocket_api.async_register_command(hass, ws_trigger_sensor_button)
     websocket_api.async_register_command(hass, ws_trigger_all_sensor_buttons)
+    websocket_api.async_register_command(hass, ws_start_self_test)
+    websocket_api.async_register_command(hass, ws_cancel_self_test)
     websocket_api.async_register_command(hass, ws_ignore_sensor)
     websocket_api.async_register_command(hass, ws_save_zone)
     websocket_api.async_register_command(hass, ws_delete_zone)
@@ -89,6 +91,7 @@ async def ws_get_config(
             "ignored_sensors": coordinator.ignored_sensors if coordinator else [],
             "sensor_batteries": coordinator.sensor_batteries if coordinator else {},
             "low_battery_sensors": coordinator.low_battery_sensors if coordinator else {},
+            "self_test_status": coordinator.self_test_status if coordinator else {},
         },
     )
 
@@ -148,6 +151,7 @@ async def ws_list_candidate_sensors(
         suggested_silence = ""
         suggested_drill = ""
         suggested_test = ""
+        suggested_test_result = ""
         suggested_battery = ""
         battery_level = None
 
@@ -173,8 +177,10 @@ async def ws_list_candidate_sensors(
                         suggested_drill = s_eid
                     elif any(k in s_lower for k in ["self_test", "selbsttest", "test"]):
                         suggested_test = s_eid
-                elif domain == "sensor" and battery_level is None:
-                    if s.attributes.get(ATTR_DEVICE_CLASS) == "battery" or s_lower.endswith("_battery") or s_lower.endswith("_batterie"):
+                elif domain == "sensor":
+                    if any(k in s_lower for k in ["last_self_test", "self_test_result", "selbsttest_ergebnis", "selbsttest_status", "last_test", "selbsttest"]):
+                        suggested_test_result = s_eid
+                    if battery_level is None and (s.attributes.get(ATTR_DEVICE_CLASS) == "battery" or s_lower.endswith("_battery") or s_lower.endswith("_batterie")):
                         suggested_battery = s_eid
                         if s.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
                             try:
@@ -196,6 +202,7 @@ async def ws_list_candidate_sensors(
             "suggested_silence": suggested_silence,
             "suggested_drill": suggested_drill,
             "suggested_test": suggested_test,
+            "suggested_test_result": suggested_test_result,
             "suggested_battery": suggested_battery,
             "battery_level": battery_level,
         })
@@ -222,6 +229,7 @@ async def ws_list_candidate_sensors(
                 vol.Optional("silence_entity"): vol.Any(cv.entity_id, None, ""),
                 vol.Optional("drill_entity"): vol.Any(cv.entity_id, None, ""),
                 vol.Optional("test_entity"): vol.Any(cv.entity_id, None, ""),
+                vol.Optional("test_result_entity"): vol.Any(cv.entity_id, None, ""),
                 vol.Optional("battery_entity"): vol.Any(cv.entity_id, None, ""),
             }
         ),
@@ -553,6 +561,50 @@ async def ws_trigger_all_sensor_buttons(
 
 @websocket_api.websocket_command(
     {
+        vol.Required("type"): "safety_monitor/self_test/start",
+        vol.Optional("step_seconds"): cv.positive_int,
+    }
+)
+@websocket_api.async_response
+async def ws_start_self_test(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Start sequential self-test."""
+    _, coordinator = _get_integration_instances(hass)
+    if not coordinator:
+        connection.send_error(msg["id"], "not_found", "Safety Monitor not initialized")
+        return
+
+    step_seconds = msg.get("step_seconds")
+    result = await coordinator.async_start_self_test(step_seconds=step_seconds)
+    connection.send_result(msg["id"], result)
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "safety_monitor/self_test/cancel",
+    }
+)
+@websocket_api.async_response
+async def ws_cancel_self_test(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Cancel running self-test."""
+    _, coordinator = _get_integration_instances(hass)
+    if not coordinator:
+        connection.send_error(msg["id"], "not_found", "Safety Monitor not initialized")
+        return
+
+    success = await coordinator.async_cancel_self_test()
+    connection.send_result(msg["id"], {"success": success, "status": coordinator.self_test_status})
+
+
+@websocket_api.websocket_command(
+    {
         vol.Required("type"): "safety_monitor/sensor/ignore",
         vol.Required("entity_id"): cv.entity_id,
         vol.Optional("ignored", default=True): cv.boolean,
@@ -603,5 +655,7 @@ async def ws_get_status(
             "ignored_sensors": coordinator.ignored_sensors,
             "sensor_batteries": coordinator.sensor_batteries,
             "low_battery_sensors": coordinator.low_battery_sensors,
+            "self_test_status": coordinator.self_test_status,
         },
     )
+

@@ -10,6 +10,9 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 from .const import (
+    DEFAULT_AUTO_SELF_TEST_DAY,
+    DEFAULT_AUTO_SELF_TEST_STEP_SECONDS,
+    DEFAULT_AUTO_SELF_TEST_TIME,
     DEFAULT_BATTERY_LOW_THRESHOLD,
     DEFAULT_DOUBLE_KNOCK_TIMEOUT,
     DEFAULT_PRE_ALARM_DELAY,
@@ -154,6 +157,12 @@ def _get_default_settings() -> dict[str, Any]:
         "heartbeat_alert_offline": True,
         "heartbeat_alert_battery": True,
         "battery_threshold": DEFAULT_BATTERY_LOW_THRESHOLD,
+        "auto_self_test_enabled": False,
+        "auto_self_test_day": DEFAULT_AUTO_SELF_TEST_DAY,
+        "auto_self_test_time": DEFAULT_AUTO_SELF_TEST_TIME,
+        "auto_self_test_step_seconds": DEFAULT_AUTO_SELF_TEST_STEP_SECONDS,
+        "auto_self_test_notify": True,
+        "last_auto_self_test_date": "",
     }
 
 
@@ -229,6 +238,7 @@ class SafetyStorage:
             "drill_entity": (sensor_data.get("drill_entity", existing.get("drill_entity", "")) or "").strip(),
             "test_entity": (sensor_data.get("test_entity", existing.get("test_entity", "")) or "").strip(),
             "battery_entity": (sensor_data.get("battery_entity", existing.get("battery_entity", "")) or "").strip(),
+            "test_result_entity": (sensor_data.get("test_result_entity", existing.get("test_result_entity", "")) or "").strip(),
         }
         self.data["sensors"][entity_id] = merged
         await self.async_save()

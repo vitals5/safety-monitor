@@ -8,6 +8,7 @@ from tests import conftest_mock  # noqa: F401
 from custom_components.safety_monitor.const import DOMAIN, STATE_NORMAL
 from custom_components.safety_monitor.store import SafetyStorage
 from custom_components.safety_monitor.websocket import (
+    ws_cancel_self_test,
     ws_delete_action,
     ws_delete_sensor,
     ws_delete_zone,
@@ -21,6 +22,7 @@ from custom_components.safety_monitor.websocket import (
     ws_save_zone,
     ws_set_test_mode,
     ws_silence_alarm,
+    ws_start_self_test,
     ws_test_action,
     ws_trigger_all_sensor_buttons,
     ws_trigger_sensor_button,
@@ -48,6 +50,7 @@ class TestWebSocketAPI(unittest.IsolatedAsyncioTestCase):
         self.coordinator.last_trigger = None
         self.coordinator.offline_sensors = []
         self.coordinator.low_battery_sensors = {}
+        self.coordinator.self_test_status = {"running": False, "total": 0}
         self.coordinator.async_update_listeners = AsyncMock()
         self.coordinator.async_silence = AsyncMock(return_value=True)
         self.coordinator.async_reset = AsyncMock(return_value=True)
@@ -200,6 +203,8 @@ class TestWebSocketAPI(unittest.IsolatedAsyncioTestCase):
         self.connection.send_result.assert_called_once()
         res = self.connection.send_result.call_args[0][1]
         self.assertEqual(res["state"], STATE_NORMAL)
+        self.assertIn("self_test_status", res)
+        self.assertEqual(res["self_test_status"], {"running": False, "total": 0})
 
     async def test_ws_trigger_sensor_button(self) -> None:
         """Test triggering a sensor button via WS."""
@@ -308,6 +313,35 @@ class TestWebSocketAPI(unittest.IsolatedAsyncioTestCase):
         self.connection.send_result.assert_called_once()
         res = self.connection.send_result.call_args[0][1]
         self.assertEqual(res["count"], 2)
+
+    async def test_ws_self_test_start_and_cancel(self) -> None:
+        """Test starting and cancelling sequential self-test via WS."""
+        self.coordinator.async_start_self_test = AsyncMock(
+            return_value={"success": True, "status": {"running": True, "total": 1}}
+        )
+        self.coordinator.async_cancel_self_test = AsyncMock(return_value=True)
+
+        msg_start = {
+            "id": 20,
+            "type": "safety_monitor/self_test/start",
+            "step_seconds": 45,
+        }
+        await ws_start_self_test(self.hass, self.connection, msg_start)
+        self.coordinator.async_start_self_test.assert_called_once_with(step_seconds=45)
+        self.connection.send_result.assert_called_once_with(
+            20, {"success": True, "status": {"running": True, "total": 1}}
+        )
+
+        self.connection.send_result.reset_mock()
+        msg_cancel = {
+            "id": 21,
+            "type": "safety_monitor/self_test/cancel",
+        }
+        await ws_cancel_self_test(self.hass, self.connection, msg_cancel)
+        self.coordinator.async_cancel_self_test.assert_called_once()
+        self.connection.send_result.assert_called_once_with(
+            21, {"success": True, "status": {"running": False, "total": 0}}
+        )
 
 
 if __name__ == "__main__":

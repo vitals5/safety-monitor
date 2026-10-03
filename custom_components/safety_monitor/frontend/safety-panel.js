@@ -136,6 +136,26 @@
       batteryWarning: "Schwache Batterie bei Gefahrensensoren",
       batteryStatus: "Batterie",
       mainsPowered: "⚡ Netzbetrieb",
+      testResultEntity: "Selbsttest-Ergebnis-Entität (Sensor):",
+      testResultEntityHelp: "Optional: Sensor für das Ergebnis des Selbsttests (z. B. sensor.rauchmelder_last_self_test mit Wert 'Erfolg' oder Zeitstempel).",
+      btnStartSequentialSelfTest: "Sequentiellen Selbsttest starten",
+      btnCancelSelfTest: "Selbsttest abbrechen",
+      selectDrillSensorPlaceholder: "-- Melder für Alarmübung auswählen --",
+      btnDrillSingle: "Alarmübung starten",
+      drillSensorHelp: "Wählen Sie einen bestimmten Melder aus, um gezielt an diesem die Alarmübung auszulösen.",
+      autoSelfTestTitle: "Automatischer periodischer Selbsttest",
+      autoSelfTestDesc: "Führt an einem gewählten Tag im Monat sequentiell im Testmodus einen Selbsttest aller Melder durch und prüft die Ergebnis-Sensoren. Bei Fehlern wird eine Benachrichtigung gesendet.",
+      lblAutoSelfTestEnabled: "Monatlichen Selbsttest aller Melder automatisch durchführen",
+      lblAutoSelfTestDay: "Tag des Monats (1-31):",
+      lblAutoSelfTestTime: "Uhrzeit (HH:MM):",
+      lblAutoSelfTestStep: "Wartezeit pro Melder (Sekunden):",
+      lblAutoSelfTestNotify: "Benachrichtigung bei fehlgeschlagenen Meldern absetzen (Stufe 5)",
+      selfTestStatusTitle: "Selbsttest-Status",
+      selfTestProgress: "Fortschritt: Melder {current} von {total}",
+      selfTestPassed: "Bestanden",
+      selfTestFailed: "Fehlgeschlagen",
+      selfTestPending: "Wartend",
+      selfTestTesting: "Wird getestet...",
     },
     en: {
       appName: "Safety Monitor",
@@ -265,6 +285,26 @@
       batteryWarning: "Low Battery Warning on Hazard Sensors",
       batteryStatus: "Battery",
       mainsPowered: "⚡ Mains / n/a",
+      testResultEntity: "Self-Test Result Entity (Sensor):",
+      testResultEntityHelp: "Optional: Sensor reporting self-test outcome (e.g. sensor.smoke_last_self_test with state 'Erfolg'/'success' or timestamp).",
+      btnStartSequentialSelfTest: "Start Sequential Self-Test",
+      btnCancelSelfTest: "Cancel Self-Test",
+      selectDrillSensorPlaceholder: "-- Select detector for alarm drill --",
+      btnDrillSingle: "Start Alarm Drill",
+      drillSensorHelp: "Select a specific detector to trigger the drill on that device.",
+      autoSelfTestTitle: "Automated Periodic Self-Test",
+      autoSelfTestDesc: "Runs a sequential self-test in test mode on a chosen day each month and verifies result sensors. If any detector fails, a notification is sent.",
+      lblAutoSelfTestEnabled: "Automatically run monthly self-test of all detectors",
+      lblAutoSelfTestDay: "Day of month (1-31):",
+      lblAutoSelfTestTime: "Time (HH:MM):",
+      lblAutoSelfTestStep: "Step delay per detector (seconds):",
+      lblAutoSelfTestNotify: "Send notification if detectors fail self-test (Phase 5)",
+      selfTestStatusTitle: "Self-Test Status",
+      selfTestProgress: "Progress: Detector {current} of {total}",
+      selfTestPassed: "Passed",
+      selfTestFailed: "Failed",
+      selfTestPending: "Pending",
+      selfTestTesting: "Testing...",
     }
   };
 
@@ -491,19 +531,24 @@
             const newTriggers = Object.keys(status.active_triggers || {}).join(',');
             if (oldTriggers !== newTriggers) changed = true;
 
+            const oldSelfTest = JSON.stringify(this._config.self_test_status || {});
+            const newSelfTest = JSON.stringify(status.self_test_status || {});
+            if (oldSelfTest !== newSelfTest) changed = true;
+
             this._config.active_triggers = status.active_triggers || {};
             this._config.offline_sensors = status.offline_sensors || [];
             this._config.ignored_sensors = status.ignored_sensors || [];
             this._config.sensor_batteries = status.sensor_batteries || {};
             this._config.low_battery_sensors = status.low_battery_sensors || {};
-            if (!this._modalOpen && (changed || Object.keys(this._config.active_triggers).length > 0)) {
+            this._config.self_test_status = status.self_test_status || {};
+            if (!this._modalOpen && (changed || Object.keys(this._config.active_triggers).length > 0 || (this._config.self_test_status && this._config.self_test_status.running))) {
               this._render();
             }
           }
         } catch (err) {
           // silent
         }
-      }, 3000);
+      }, 2500);
     }
 
     _toggleMenu() {
@@ -670,14 +715,98 @@
       }
     }
 
+    async _startSequentialSelfTest() {
+      const root = this.shadowRoot;
+      const btn = root ? root.querySelector('#btn-test-self-sequential') : null;
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Starte...';
+      }
+      try {
+        const stepSec = (this._config.settings && this._config.settings.auto_self_test_step_seconds) || 60;
+        const res = await this._hass.callWS({
+          type: "safety_monitor/self_test/start",
+          step_seconds: stepSec,
+        });
+        if (res && res.status) {
+          this._config.self_test_status = res.status;
+          this._render();
+        } else if (res && res.error) {
+          alert(`Fehler: ${res.error}`);
+          if (btn) btn.disabled = false;
+        }
+      } catch (err) {
+        alert(`Fehler beim Starten des Selbsttests: ${err?.message || err}`);
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    async _cancelSequentialSelfTest() {
+      const root = this.shadowRoot;
+      const btn = root ? root.querySelector('#btn-test-self-cancel') : null;
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Beende...';
+      }
+      try {
+        const res = await this._hass.callWS({
+          type: "safety_monitor/self_test/cancel",
+        });
+        if (res && res.status) {
+          this._config.self_test_status = res.status;
+        }
+        this._render();
+      } catch (err) {
+        alert(`Fehler beim Abbrechen des Selbsttests: ${err?.message || err}`);
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    async _triggerSingleDrill() {
+      const root = this.shadowRoot;
+      const sel = root ? root.querySelector('#select-test-drill-sensor') : null;
+      const btn = root ? root.querySelector('#btn-test-drill-single') : null;
+      const entityId = sel ? sel.value : '';
+      if (!entityId) {
+        alert("Bitte wählen Sie zuerst einen Melder für die Alarmübung aus.");
+        if (sel) sel.focus();
+        return;
+      }
+      const orig = btn ? btn.innerHTML : '';
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Sende...';
+      }
+      try {
+        const ok = await this._triggerSensorButton(entityId, 'drill');
+        if (btn) {
+          btn.innerHTML = ok ? '✅ Ausgelöst' : '❌ Fehlgeschlagen';
+          setTimeout(() => {
+            btn.innerHTML = orig;
+            btn.disabled = false;
+          }, 2500);
+        }
+      } catch (err) {
+        if (btn) {
+          btn.innerHTML = '❌ Fehler';
+          setTimeout(() => {
+            btn.innerHTML = orig;
+            btn.disabled = false;
+          }, 2500);
+        }
+      }
+    }
+
     async _triggerSensorButton(entityId, buttonType) {
       try {
         await this._hass.callWS({
           type: "safety_monitor/sensor/trigger_button",
+          entity_id: entityId,
           sensor_entity_id: entityId,
           button_type: buttonType,
         });
         await this._loadData();
+        return true;
       } catch (err) {
         alert("Fehler beim Ausführen des Melder-Befehls: " + (err.message || err));
         throw err;
@@ -1990,7 +2119,12 @@
         </div>
 
         <!-- Test Mode Active Action Console -->
-        ${state === 'testing' ? `
+        ${state === 'testing' ? (() => {
+          const allSensors = Object.values(this._config.sensors || {});
+          const drillSensors = allSensors.filter(s => !!s.drill_entity);
+          const testSensors = allSensors.filter(s => !!s.test_entity);
+          const selfTestStatus = this._config.self_test_status || {};
+          return `
           <div class="card" style="border-left: 4px solid #00acc1; background: rgba(0, 172, 193, 0.08); margin-bottom: 20px;">
             <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
               <div style="display: flex; align-items: center; gap: 12px;">
@@ -2004,20 +2138,102 @@
                   </p>
                 </div>
               </div>
-              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                <button class="btn-sm" id="btn-test-drill-all" style="cursor: pointer; background: #0288d1; color: #fff; border: none; padding: 7px 12px; border-radius: 6px; font-weight: 600; font-size: 12px;">
-                  📢 ${this._t("btnDrillAll")}
-                </button>
-                <button class="btn-sm" id="btn-test-self-all" style="cursor: pointer; background: #00897b; color: #fff; border: none; padding: 7px 12px; border-radius: 6px; font-weight: 600; font-size: 12px;">
-                  🔔 ${this._t("btnSelfTestAll")}
-                </button>
+              <div>
                 <button class="btn-sm" id="btn-test-exit" style="cursor: pointer; background: #e53935; color: #fff; border: none; padding: 7px 12px; border-radius: 6px; font-weight: 600; font-size: 12px;">
                   ⏹️ ${this._t("btnExitTestMode")}
                 </button>
               </div>
             </div>
+
+            <!-- Single Detector Drill Section -->
+            <div style="margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(0, 172, 193, 0.2); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+              <div>
+                <div style="font-weight: 700; font-size: 13px; color: #00838f;">📢 Alarmübung (Einzelner Melder)</div>
+                <div style="font-size: 12px; color: var(--secondary-text-color, #757575);">${this._t("drillSensorHelp")}</div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                ${drillSensors.length > 0 ? `
+                  <select id="select-test-drill-sensor" class="form-control" style="max-width: 280px; padding: 6px 10px; font-size: 12px; border-radius: 6px;">
+                    <option value="">${this._t("selectDrillSensorPlaceholder")}</option>
+                    ${drillSensors.map(s => `
+                      <option value="${s.entity_id}">${s.name || s.entity_id}</option>
+                    `).join('')}
+                  </select>
+                  <button class="btn-sm" id="btn-test-drill-single" style="cursor: pointer; background: #0288d1; color: #fff; border: none; padding: 7px 12px; border-radius: 6px; font-weight: 600; font-size: 12px;">
+                    🔔 ${this._t("btnDrillSingle")}
+                  </button>
+                ` : `
+                  <span style="font-size: 12px; color: var(--secondary-text-color, #757575);">ℹ️ Keine Melder mit Alarmübungs-Button konfiguriert</span>
+                `}
+              </div>
+            </div>
+
+            <!-- Sequential Self-Test Section -->
+            <div style="margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(0, 172, 193, 0.2);">
+              <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 8px;">
+                <div>
+                  <div style="font-weight: 700; font-size: 13px; color: #00838f;">🧪 Sequentieller Selbsttest (${testSensors.length} Melder mit Test-Funktion)</div>
+                  <div style="font-size: 12px; color: var(--secondary-text-color, #757575);">
+                    Testet alle Melder nacheinander im konfigurierten Abstand und prüft Rückmeldungen.
+                  </div>
+                </div>
+                <div>
+                  ${selfTestStatus.running ? `
+                    <button class="btn-sm" id="btn-test-self-cancel" style="cursor: pointer; background: #d32f2f; color: #fff; border: none; padding: 7px 14px; border-radius: 6px; font-weight: 600; font-size: 12px;">
+                      ⏹️ ${this._t("btnCancelSelfTest")}
+                    </button>
+                  ` : `
+                    <button class="btn-sm" id="btn-test-self-sequential" ${testSensors.length === 0 ? 'disabled' : ''} style="cursor: pointer; background: #00897b; color: #fff; border: none; padding: 7px 14px; border-radius: 6px; font-weight: 600; font-size: 12px;">
+                      🧪 ${this._t("btnStartSequentialSelfTest")}
+                    </button>
+                  `}
+                </div>
+              </div>
+
+              ${selfTestStatus.running ? `
+                <div style="padding: 12px 14px; border-radius: 8px; background: rgba(0, 137, 123, 0.1); border: 1px solid rgba(0, 137, 123, 0.3); margin-top: 8px;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 8px;">
+                    <strong style="color: #00796b; font-size: 13px;">
+                      🧪 ${this._t("selfTestProgress").replace('{current}', selfTestStatus.current_index || 0).replace('{total}', selfTestStatus.total || testSensors.length)}
+                    </strong>
+                    <span style="font-size: 12px; color: var(--secondary-text-color, #757575);">
+                      Aktuell: <strong>${selfTestStatus.current_sensor_name || selfTestStatus.current_sensor || '...'}</strong> (${selfTestStatus.step_seconds || 60}s Pause)
+                    </span>
+                  </div>
+                  <div style="display: flex; flex-direction: column; gap: 6px;">
+                    ${Object.values(selfTestStatus.results || {}).map(r => {
+                      const isCur = r.entity_id === selfTestStatus.current_sensor;
+                      const bgBadge = r.status === 'passed' ? '#2e7d32' : r.status === 'failed' ? '#c62828' : r.status === 'testing' ? '#0288d1' : '#757575';
+                      const lblBadge = r.status === 'passed' ? this._t("selfTestPassed") : r.status === 'failed' ? this._t("selfTestFailed") : r.status === 'testing' ? this._t("selfTestTesting") : this._t("selfTestPending");
+                      return `
+                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border-radius: 6px; background: ${isCur ? 'rgba(2, 136, 209, 0.12)' : 'var(--card-background-color, #fff)'}; border: 1px solid ${isCur ? '#0288d1' : 'var(--ha-card-border-color, rgba(127,127,127,0.2))'}; font-size: 12px;">
+                          <div>
+                            <strong>${r.name || r.entity_id}</strong>
+                            <span style="color: var(--secondary-text-color, #757575); margin-left: 6px;">(${r.details || ''})</span>
+                          </div>
+                          <span class="badge" style="background: ${bgBadge}; color: #fff; font-size: 11px; padding: 2px 8px; border-radius: 4px;">
+                            ${lblBadge}
+                          </span>
+                        </div>
+                      `;
+                    }).join('')}
+                  </div>
+                </div>
+              ` : (selfTestStatus.finished_at ? `
+                <div style="margin-top: 8px; font-size: 12px; color: var(--secondary-text-color, #757575); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                  <span>
+                    Letzter Selbsttest beendet (${new Date(selfTestStatus.finished_at).toLocaleTimeString()}):
+                    ${Object.values(selfTestStatus.results || {}).some(r => r.status === 'failed')
+                      ? `<strong style="color: #c62828;">⚠️ ${Object.values(selfTestStatus.results || {}).filter(r => r.status === 'failed').length} Melder mit Fehler!</strong>`
+                      : `<strong style="color: #2e7d32;">✅ Alle Melder erfolgreich bestanden.</strong>`
+                    }
+                  </span>
+                </div>
+              ` : '')}
+            </div>
           </div>
-        ` : ''}
+          `;
+        })() : ''}
 
         <!-- Low Battery Warning Banner -->
         ${lowBatteryEntries.length > 0 ? `
@@ -2428,6 +2644,7 @@
             silence_entity: (cand && cand.suggested_silence) || '',
             drill_entity: (cand && cand.suggested_drill) || '',
             test_entity: (cand && cand.suggested_test) || '',
+            test_result_entity: (cand && cand.suggested_test_result) || '',
             battery_entity: (cand && cand.suggested_battery) || '',
           };
           this._modalOpen = 'sensor';
@@ -2682,6 +2899,41 @@
               ${this._t("lblBatteryAlerts")}
             </label>
           </div>
+
+          <hr style="border: none; border-top: 1px solid var(--divider-color, rgba(127,127,127,0.2)); margin: 20px 0;">
+          <h4 style="margin: 0 0 6px 0; font-size: 15px; font-weight: 700; color: #00796b;">
+            🧪 ${this._t("autoSelfTestTitle")}
+          </h4>
+          <p style="color: var(--secondary-text-color, #757575); font-size: 13px; margin: 0 0 14px 0;">
+            ${this._t("autoSelfTestDesc")}
+          </p>
+          <div class="form-group">
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight: 600;">
+              <input type="checkbox" id="setting-auto-self-test-enabled" ${settings.auto_self_test_enabled ? 'checked' : ''}>
+              ${this._t("lblAutoSelfTestEnabled")}
+            </label>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 12px;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label">${this._t("lblAutoSelfTestDay")}</label>
+              <input type="number" min="1" max="31" class="form-control" id="setting-auto-self-test-day" value="${settings.auto_self_test_day || 1}">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label">${this._t("lblAutoSelfTestTime")}</label>
+              <input type="time" class="form-control" id="setting-auto-self-test-time" value="${settings.auto_self_test_time || '11:00'}">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label">${this._t("lblAutoSelfTestStep")}</label>
+              <input type="number" min="10" max="600" class="form-control" id="setting-auto-self-test-step" value="${settings.auto_self_test_step_seconds || 60}">
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom: 20px;">
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+              <input type="checkbox" id="setting-auto-self-test-notify" ${settings.auto_self_test_notify !== false ? 'checked' : ''}>
+              ${this._t("lblAutoSelfTestNotify")}
+            </label>
+          </div>
+
           <button class="btn-primary" id="btn-save-settings">💾 ${this._t("save")}</button>
         </div>
       `;
@@ -2800,6 +3052,27 @@
                   </small>
                   <div id="modal-sensor-test-preview">
                     ${this._renderTargetPreview(s.test_entity || '')}
+                  </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 14px; position: relative;">
+                  <label class="form-label">${this._t("testResultEntity")}</label>
+                  <div style="position: relative;">
+                    <input
+                      type="text"
+                      class="form-control"
+                      id="modal-sensor-test-result"
+                      value="${s.test_result_entity || ''}"
+                      placeholder="sensor.rauchmelder_last_self_test"
+                      autocomplete="off"
+                    >
+                    <div id="sensor-test-result-suggestions" class="suggestions-dropdown"></div>
+                  </div>
+                  <small style="color: var(--secondary-text-color, #757575); font-size: 11px; display: block; margin-top: 2px;">
+                    ${this._t("testResultEntityHelp")}
+                  </small>
+                  <div id="modal-sensor-test-result-preview">
+                    ${this._renderTargetPreview(s.test_result_entity || '')}
                   </div>
                 </div>
 
@@ -3150,6 +3423,15 @@
 
       const btnTestExit = root.querySelector('#btn-test-exit');
       if (btnTestExit) btnTestExit.addEventListener('click', () => this._toggleTestMode());
+
+      const btnTestDrillSingle = root.querySelector('#btn-test-drill-single');
+      if (btnTestDrillSingle) btnTestDrillSingle.addEventListener('click', () => this._triggerSingleDrill());
+
+      const btnTestSelfSeq = root.querySelector('#btn-test-self-sequential');
+      if (btnTestSelfSeq) btnTestSelfSeq.addEventListener('click', () => this._startSequentialSelfTest());
+
+      const btnTestSelfCancel = root.querySelector('#btn-test-self-cancel');
+      if (btnTestSelfCancel) btnTestSelfCancel.addEventListener('click', () => this._cancelSequentialSelfTest());
 
       const btnTestDrillAll = root.querySelector('#btn-test-drill-all');
       if (btnTestDrillAll) btnTestDrillAll.addEventListener('click', () => this._triggerAllSensorButtons('drill'));
@@ -3578,6 +3860,24 @@
         );
       }
 
+      // 2b. Wire test result entity autocomplete & preview
+      const testResultInput = root.querySelector('#modal-sensor-test-result');
+      const testResultSuggestions = root.querySelector('#sensor-test-result-suggestions');
+      const testResultPreview = root.querySelector('#modal-sensor-test-result-preview');
+      if (testResultInput && testResultSuggestions) {
+        setupEntityAutocomplete(
+          testResultInput,
+          testResultSuggestions,
+          testResultPreview,
+          (eid, st, q) => {
+            if (!eid.startsWith('sensor.') && !eid.startsWith('binary_sensor.')) return false;
+            if (q) return true;
+            return eid.toLowerCase().includes('test') || (st?.attributes?.friendly_name || '').toLowerCase().includes('test');
+          },
+          ['test', 'self_test', 'selbsttest', 'result', 'ergebnis', 'status', 'last_test']
+        );
+      }
+
       // 3. Wire drill entity autocomplete & preview
       const drillInput = root.querySelector('#modal-sensor-drill');
       const drillSuggestions = root.querySelector('#sensor-drill-suggestions');
@@ -3733,6 +4033,11 @@
           const dkSec = parseInt(root.querySelector('#setting-double-knock').value, 10) || 60;
           const offlineAlert = root.querySelector('#setting-offline-alerts').checked;
           const batteryAlert = root.querySelector('#setting-battery-alerts').checked;
+          const autoSelfTestEnabled = root.querySelector('#setting-auto-self-test-enabled')?.checked || false;
+          const autoSelfTestDay = parseInt(root.querySelector('#setting-auto-self-test-day')?.value, 10) || 1;
+          const autoSelfTestTime = (root.querySelector('#setting-auto-self-test-time')?.value || '11:00').trim();
+          const autoSelfTestStep = parseInt(root.querySelector('#setting-auto-self-test-step')?.value, 10) || 60;
+          const autoSelfTestNotify = root.querySelector('#setting-auto-self-test-notify')?.checked !== false;
 
           const updatedSettings = {
             test_mode_timeout: testMin * 60,
@@ -3740,6 +4045,11 @@
             double_knock_global_timeout: dkSec,
             heartbeat_alert_offline: offlineAlert,
             heartbeat_alert_battery: batteryAlert,
+            auto_self_test_enabled: autoSelfTestEnabled,
+            auto_self_test_day: autoSelfTestDay,
+            auto_self_test_time: autoSelfTestTime,
+            auto_self_test_step_seconds: autoSelfTestStep,
+            auto_self_test_notify: autoSelfTestNotify,
           };
 
           try {
@@ -3803,6 +4113,7 @@
           const silenceEntity = root.querySelector('#modal-sensor-silence')?.value.trim() || "";
           const drillEntity = root.querySelector('#modal-sensor-drill')?.value.trim() || "";
           const testEntity = root.querySelector('#modal-sensor-test')?.value.trim() || "";
+          const testResultEntity = root.querySelector('#modal-sensor-test-result')?.value.trim() || "";
           const batteryEntity = root.querySelector('#modal-sensor-battery')?.value.trim() || "";
 
           if (!entity) {
@@ -3822,7 +4133,7 @@
           btnSaveModalSensor.classList.remove('test-success', 'test-error');
 
           try {
-            await this._hass.callWS({
+            const saveRes = await this._hass.callWS({
               type: "safety_monitor/sensor/save",
               sensor: {
                 entity_id: entity,
@@ -3836,6 +4147,7 @@
                 silence_entity: silenceEntity,
                 drill_entity: drillEntity,
                 test_entity: testEntity,
+                test_result_entity: testResultEntity,
                 battery_entity: batteryEntity,
                 enabled: true,
               }

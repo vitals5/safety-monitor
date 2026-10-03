@@ -5,7 +5,7 @@ import os
 
 DOMAIN = "safety_monitor"
 NAME = "Safety Monitor"
-VERSION = "1.0.23"
+VERSION = "1.0.24"
 MANUFACTURER = "Safety Monitor"
 
 # Storage
@@ -76,6 +76,9 @@ DEFAULT_TEST_MODE_DURATION = 900  # 15 minutes
 DEFAULT_SILENCE_DURATION = 600    # 10 minutes
 DEFAULT_DOUBLE_KNOCK_TIMEOUT = 60 # 60 seconds
 DEFAULT_BATTERY_LOW_THRESHOLD = 15
+DEFAULT_AUTO_SELF_TEST_STEP_SECONDS = 60
+DEFAULT_AUTO_SELF_TEST_DAY = 1
+DEFAULT_AUTO_SELF_TEST_TIME = "11:00"
 
 # Home Assistant Bus Events
 EVENT_SAFETY_STATE_CHANGED = "safety_monitor_state_changed"
@@ -87,6 +90,8 @@ EVENT_SAFETY_TEST_MODE_CHANGED = "safety_monitor_test_mode_changed"
 EVENT_SAFETY_BATTERY_LOW = "safety_monitor_battery_low"
 EVENT_SAFETY_SENSOR_OFFLINE = "safety_monitor_sensor_offline"
 EVENT_SAFETY_SENSOR_ONLINE = "safety_monitor_sensor_online"
+EVENT_SAFETY_SELF_TEST_FAILED = "safety_monitor_self_test_failed"
+EVENT_SAFETY_SELF_TEST_COMPLETED = "safety_monitor_self_test_completed"
 
 # Dispatcher Signals
 SIGNAL_SAFETY_MONITOR_UPDATED = "safety_monitor_updated"

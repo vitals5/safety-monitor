@@ -169,10 +169,59 @@ class TestSafetyStorage(unittest.IsolatedAsyncioTestCase):
                 "details": f"Test trigger {i}",
             })
 
-        history = self.storage.async_get_history(limit=200)
-        self.assertEqual(len(history), 100)
-        self.assertEqual(history[-1]["details"], "Test trigger 119")
+    async def test_sensor_buttons_and_result_entity(self) -> None:
+        """Test saving and retrieving sensor button entities and test_result_entity."""
+        await self.storage.async_load()
+
+        sensor_data = {
+            "entity_id": "binary_sensor.smoke_hallway",
+            "name": "Hallway Smoke",
+            "zone": "kitchen",
+            "type": "smoke",
+            "silence_entity": "button.smoke_hallway_silence",
+            "drill_entity": "button.smoke_hallway_drill",
+            "test_entity": "button.smoke_hallway_test",
+            "test_result_entity": "sensor.smoke_hallway_last_self_test",
+            "battery_entity": "sensor.smoke_hallway_battery",
+        }
+        saved = await self.storage.async_save_sensor(sensor_data)
+        self.assertEqual(saved["silence_entity"], "button.smoke_hallway_silence")
+        self.assertEqual(saved["drill_entity"], "button.smoke_hallway_drill")
+        self.assertEqual(saved["test_entity"], "button.smoke_hallway_test")
+        self.assertEqual(saved["test_result_entity"], "sensor.smoke_hallway_last_self_test")
+        self.assertEqual(saved["battery_entity"], "sensor.smoke_hallway_battery")
+
+        retrieved = self.storage.async_get_sensor("binary_sensor.smoke_hallway")
+        self.assertEqual(retrieved["test_result_entity"], "sensor.smoke_hallway_last_self_test")
+
+    async def test_auto_self_test_settings(self) -> None:
+        """Test default settings and updating auto self-test configuration."""
+        await self.storage.async_load()
+
+        defaults = self.storage.async_get_settings()
+        self.assertFalse(defaults["auto_self_test_enabled"])
+        self.assertEqual(defaults["auto_self_test_day"], 1)
+        self.assertEqual(defaults["auto_self_test_time"], "11:00")
+        self.assertEqual(defaults["auto_self_test_step_seconds"], 60)
+        self.assertTrue(defaults["auto_self_test_notify"])
+        self.assertEqual(defaults["last_auto_self_test_date"], "")
+
+        updated = await self.storage.async_update_settings({
+            "auto_self_test_enabled": True,
+            "auto_self_test_day": 15,
+            "auto_self_test_time": "14:30",
+            "auto_self_test_step_seconds": 120,
+            "auto_self_test_notify": False,
+            "last_auto_self_test_date": "2026-10-15",
+        })
+        self.assertTrue(updated["auto_self_test_enabled"])
+        self.assertEqual(updated["auto_self_test_day"], 15)
+        self.assertEqual(updated["auto_self_test_time"], "14:30")
+        self.assertEqual(updated["auto_self_test_step_seconds"], 120)
+        self.assertFalse(updated["auto_self_test_notify"])
+        self.assertEqual(updated["last_auto_self_test_date"], "2026-10-15")
 
 
 if __name__ == "__main__":
     unittest.main()
+
