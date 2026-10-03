@@ -90,18 +90,20 @@ class TestWebSocketAPI(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(args[1]["history"]), 75)
         self.assertEqual(args[1]["settings"].get("history_default_time"), "24h")
         self.assertEqual(args[1]["settings"].get("history_default_type"), "all")
+        self.assertEqual(args[1]["settings"].get("admin_only_tabs"), True)
 
     async def test_ws_update_settings(self) -> None:
         """Test updating settings."""
         msg = {
             "id": 2,
             "type": "safety_monitor/config/update_settings",
-            "settings": {"test_mode_timeout": 600},
+            "settings": {"test_mode_timeout": 600, "admin_only_tabs": False},
         }
         await ws_update_settings(self.hass, self.connection, msg)
         self.connection.send_result.assert_called_once()
         res = self.connection.send_result.call_args[0][1]
         self.assertEqual(res["settings"]["test_mode_timeout"], 600)
+        self.assertEqual(res["settings"]["admin_only_tabs"], False)
 
     async def test_ws_list_candidates(self) -> None:
         """Test scanning candidate sensors including None friendly_name and battery sibling."""

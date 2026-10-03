@@ -152,6 +152,7 @@ def _get_default_settings() -> dict[str, Any]:
     return {
         "language": "auto",
         "show_back_button": "auto",
+        "admin_only_tabs": True,
         "test_mode": False,
         "test_mode_timeout": DEFAULT_TEST_MODE_DURATION,
         "silence_timeout": DEFAULT_SILENCE_DURATION,

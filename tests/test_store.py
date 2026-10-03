@@ -37,6 +37,7 @@ class TestSafetyStorage(unittest.IsolatedAsyncioTestCase):
         settings = self.storage.async_get_settings()
         self.assertEqual(settings.get("language"), "auto")
         self.assertEqual(settings.get("show_back_button"), "auto")
+        self.assertEqual(settings.get("admin_only_tabs"), True)
         self.assertEqual(settings.get("test_mode"), False)
         self.assertEqual(settings.get("test_mode_timeout"), 900)
         self.assertEqual(settings.get("history_default_time"), "24h")
@@ -159,9 +160,11 @@ class TestSafetyStorage(unittest.IsolatedAsyncioTestCase):
         updated = await self.storage.async_update_settings({
             "test_mode_timeout": 1200,
             "silence_timeout": 300,
+            "admin_only_tabs": False,
         })
         self.assertEqual(updated["test_mode_timeout"], 1200)
         self.assertEqual(updated["silence_timeout"], 300)
+        self.assertFalse(updated["admin_only_tabs"])
 
     async def test_history_capping(self) -> None:
         """Test history entries addition and capping at 100."""

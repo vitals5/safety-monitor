@@ -217,7 +217,9 @@
         "lblShowBackButton": "Zurück-Button im Header anzeigen:",
         "backBtnAuto": "Automatisch (bei Aufruf aus Dashboard)",
         "backBtnAlways": "Immer anzeigen",
-        "backBtnNever": "Nie anzeigen (Deaktiviert)"
+        "backBtnNever": "Nie anzeigen (Deaktiviert)",
+        "lblAdminOnlyTabs": "Konfigurations-Tabs nur für Administratoren:",
+        "descAdminOnlyTabs": "Blendet die Tabs 'Sensoren', 'Notfall-Aktionen' und 'Einstellungen' für normale Benutzer aus. Standard-Benutzer sehen nur den Übersichtstab."
     },
     "en": {
         "appName": "Safety Monitor",
@@ -428,7 +430,9 @@
         "lblShowBackButton": "Show Back button in header:",
         "backBtnAuto": "Automatic (when navigated from dashboard)",
         "backBtnAlways": "Always show",
-        "backBtnNever": "Never show (Disabled)"
+        "backBtnNever": "Never show (Disabled)",
+        "lblAdminOnlyTabs": "Configuration tabs only for administrators:",
+        "descAdminOnlyTabs": "Hides the 'Sensors', 'Emergency Actions', and 'Settings' tabs for non-admin users. Normal users only see the Overview tab."
     },
     "fr": {
         "appName": "Safety Monitor",
@@ -639,7 +643,9 @@
         "lblShowBackButton": "Afficher le bouton retour dans l'en-tête :",
         "backBtnAuto": "Automatique (lors d'un accès depuis un tableau de bord)",
         "backBtnAlways": "Toujours afficher",
-        "backBtnNever": "Ne jamais afficher (Désactivé)"
+        "backBtnNever": "Ne jamais afficher (Désactivé)",
+        "lblAdminOnlyTabs": "Onglets de configuration uniquement pour les administrateurs :",
+        "descAdminOnlyTabs": "Masque les onglets 'Capteurs', 'Actions d'urgence' et 'Paramètres' pour les non-administrateurs. Les utilisateurs normaux ne voient que l'onglet Aperçu."
     },
     "es": {
         "appName": "Safety Monitor",
@@ -850,7 +856,9 @@
         "lblShowBackButton": "Mostrar botón volver en la cabecera:",
         "backBtnAuto": "Automático (al navegar desde un panel)",
         "backBtnAlways": "Mostrar siempre",
-        "backBtnNever": "No mostrar nunca (Desactivado)"
+        "backBtnNever": "No mostrar nunca (Desactivado)",
+        "lblAdminOnlyTabs": "Pestañas de configuración solo para administradores:",
+        "descAdminOnlyTabs": "Oculta las pestañas 'Sensores', 'Acciones de emergencia' y 'Ajustes' para usuarios que no son administradores. Los usuarios normales solo ven la pestaña Resumen."
     },
     "it": {
         "appName": "Safety Monitor",
@@ -1061,7 +1069,9 @@
         "lblShowBackButton": "Mostra pulsante indietro nell'intestazione:",
         "backBtnAuto": "Automatico (se aperto da dashboard)",
         "backBtnAlways": "Mostra sempre",
-        "backBtnNever": "Non mostrare mai (Disattivato)"
+        "backBtnNever": "Non mostrare mai (Disattivato)",
+        "lblAdminOnlyTabs": "Schede di configurazione solo per amministratori:",
+        "descAdminOnlyTabs": "Nasconde le schede 'Sensori', 'Azioni di emergenza' e 'Impostazioni' agli utenti non amministratori. Gli utenti standard vedono solo la scheda Panoramica."
     },
     "nl": {
         "appName": "Safety Monitor",
@@ -1272,7 +1282,9 @@
         "lblShowBackButton": "Terug-knop weergeven in koptekst:",
         "backBtnAuto": "Automatisch (bij navigatie vanaf dashboard)",
         "backBtnAlways": "Altijd weergeven",
-        "backBtnNever": "Nooit weergeven (Uitgeschakeld)"
+        "backBtnNever": "Nooit weergeven (Uitgeschakeld)",
+        "lblAdminOnlyTabs": "Configuratietabbladen alleen voor beheerders:",
+        "descAdminOnlyTabs": "Verbergt de tabbladen 'Sensoren', 'Noodacties' en 'Instellingen' voor niet-beheerders. Normale gebruikers zien alleen het tabblad Overzicht."
     },
     "pl": {
         "appName": "Safety Monitor",
@@ -1483,7 +1495,9 @@
         "lblShowBackButton": "Pokaż przycisk wstecz w nagłówku:",
         "backBtnAuto": "Automatycznie (po przejściu z pulpitu)",
         "backBtnAlways": "Zawsze pokazuj",
-        "backBtnNever": "Nigdy nie pokazuj (Wyłączone)"
+        "backBtnNever": "Nigdy nie pokazuj (Wyłączone)",
+        "lblAdminOnlyTabs": "Karty konfiguracji tylko dla administratorów:",
+        "descAdminOnlyTabs": "Ukrywa karty 'Czujniki', 'Działania awaryjne' i 'Ustawienia' dla użytkowników niebędących administratorami. Zwykli użytkownicy widzą tylko kartę Przegląd."
     },
     "pt": {
         "appName": "Safety Monitor",
@@ -1694,7 +1708,9 @@
         "lblShowBackButton": "Mostrar botão voltar no cabeçalho:",
         "backBtnAuto": "Automático (ao navegar a partir do painel)",
         "backBtnAlways": "Mostrar sempre",
-        "backBtnNever": "Nunca mostrar (Desativado)"
+        "backBtnNever": "Nunca mostrar (Desativado)",
+        "lblAdminOnlyTabs": "Separadores de configuração apenas para administradores:",
+        "descAdminOnlyTabs": "Oculta os separadores 'Sensores', 'Ações de Emergência' e 'Definições' para não administradores. Os utilizadores normais apenas veem o separador Visão Geral."
     },
     "ru": {
         "appName": "Safety Monitor",
@@ -1905,7 +1921,9 @@
         "lblShowBackButton": "Показывать кнопку назад в заголовке:",
         "backBtnAuto": "Автоматически (при переходе с панели)",
         "backBtnAlways": "Всегда показывать",
-        "backBtnNever": "Никогда не показывать (Отключено)"
+        "backBtnNever": "Никогда не показывать (Отключено)",
+        "lblAdminOnlyTabs": "Вкладки настроек только для администраторов:",
+        "descAdminOnlyTabs": "Скрывает вкладки «Датчики», «Аварийные действия» и «Настройки» для обычных пользователей. Обычные пользователи видят только вкладку «Обзор»."
     },
     "sv": {
         "appName": "Safety Monitor",
@@ -2116,7 +2134,9 @@
         "lblShowBackButton": "Visa tillbaka-knapp i sidhuvudet:",
         "backBtnAuto": "Automatiskt (vid navigering från instrumentpanel)",
         "backBtnAlways": "Visa alltid",
-        "backBtnNever": "Visa aldrig (Inaktiverad)"
+        "backBtnNever": "Visa aldrig (Inaktiverad)",
+        "lblAdminOnlyTabs": "Konfigurationsflikar endast för administratörer:",
+        "descAdminOnlyTabs": "Döljer flikarna 'Sensorer', 'Nödåtgärder' och 'Inställningar' för icke-administratörer. Vanliga användare ser endast fliken Översikt."
     }
 };
 
@@ -2294,6 +2314,22 @@
       this._lang = this._resolveLanguage("auto");
     }
 
+    get _isAdmin() {
+      if (!this._hass) return true;
+      if (this._hass.user && typeof this._hass.user.is_admin === 'boolean') {
+        return this._hass.user.is_admin;
+      }
+      return true;
+    }
+
+    get _showConfigTabs() {
+      const adminOnly = (this._config && this._config.settings && this._config.settings.admin_only_tabs !== undefined)
+        ? (this._config.settings.admin_only_tabs !== false)
+        : true;
+      if (!adminOnly) return true;
+      return this._isAdmin;
+    }
+
     _canGoBack() {
       // 1. Setting override in global settings
       const setting = (this._config && this._config.settings && this._config.settings.show_back_button) || 'auto';
@@ -2436,7 +2472,7 @@
         console.error("Error loading Safety Monitor config:", err);
       }
 
-      if (loadCandidates || this._activeTab === "sensors" || !this._candidates || this._candidates.length === 0) {
+      if (this._showConfigTabs && (loadCandidates || this._activeTab === "sensors" || !this._candidates || this._candidates.length === 0)) {
         this._loadCandidates();
       }
     }
@@ -3005,6 +3041,10 @@
       const zones = Object.values(this._config.zones || {});
       const actions = this._config.actions || [];
       const history = this._config.history || [];
+      const showConfigTabs = this._showConfigTabs;
+      if (!showConfigTabs && this._activeTab !== 'overview') {
+        this._activeTab = 'overview';
+      }
 
       this.shadowRoot.innerHTML = `
         <style>
@@ -4047,31 +4087,33 @@
             <button class="tab-btn ${this._activeTab === 'overview' ? 'active' : ''}" id="tab-overview">
               🛡️ ${this._t("tabOverview")}
             </button>
-            <button class="tab-btn ${this._activeTab === 'sensors' ? 'active' : ''}" id="tab-sensors">
-              🚨 ${this._t("tabSensors")} (${sensors.length})
-            </button>
-            <button class="tab-btn ${this._activeTab === 'actions' ? 'active' : ''}" id="tab-actions">
-              ⚡ ${this._t("tabActions")} (${actions.length})
-            </button>
-            <button class="tab-btn ${this._activeTab === 'settings' ? 'active' : ''}" id="tab-settings">
-              ⚙️ ${this._t("tabSettings")}
-            </button>
+            ${showConfigTabs ? `
+              <button class="tab-btn ${this._activeTab === 'sensors' ? 'active' : ''}" id="tab-sensors">
+                🚨 ${this._t("tabSensors")} (${sensors.length})
+              </button>
+              <button class="tab-btn ${this._activeTab === 'actions' ? 'active' : ''}" id="tab-actions">
+                ⚡ ${this._t("tabActions")} (${actions.length})
+              </button>
+              <button class="tab-btn ${this._activeTab === 'settings' ? 'active' : ''}" id="tab-settings">
+                ⚙️ ${this._t("tabSettings")}
+              </button>
+            ` : ''}
           </div>
 
           <!-- TAB 1: OVERVIEW & STATUS -->
           ${this._activeTab === 'overview' ? this._renderOverviewTab(state, activeTriggers, history) : ''}
 
           <!-- TAB 2: SENSORS -->
-          ${this._activeTab === 'sensors' ? this._renderSensorsTab(sensors, zones) : ''}
+          ${(showConfigTabs && this._activeTab === 'sensors') ? this._renderSensorsTab(sensors, zones) : ''}
 
           <!-- TAB 3: ACTIONS & ESCALATION -->
-          ${this._activeTab === 'actions' ? this._renderActionsTab(actions) : ''}
+          ${(showConfigTabs && this._activeTab === 'actions') ? this._renderActionsTab(actions) : ''}
 
           <!-- TAB 4: SETTINGS & ZONES -->
-          ${this._activeTab === 'settings' ? this._renderSettingsTab(zones) : ''}
+          ${(showConfigTabs && this._activeTab === 'settings') ? this._renderSettingsTab(zones) : ''}
 
           <!-- Modals -->
-          ${this._renderModals(zones)}
+          ${showConfigTabs ? this._renderModals(zones) : ''}
         </div>
       `;
 
@@ -4457,9 +4499,11 @@
           ${activeTriggers.length === 0 ? `
             <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
               <p style="color: var(--secondary-text-color, #757575); margin: 0;">${this._t("noActiveHazards")}</p>
-              <button class="btn-sm" id="btn-goto-sensors" style="cursor: pointer;">
-                🔍 Melder-Übersicht &amp; Tests anzeigen
-              </button>
+              ${this._showConfigTabs ? `
+                <button class="btn-sm" id="btn-goto-sensors" style="cursor: pointer;">
+                  🔍 Melder-Übersicht &amp; Tests anzeigen
+                </button>
+              ` : ''}
             </div>
           ` : `
             <div class="table-responsive">
@@ -5155,6 +5199,15 @@
             </select>
           </div>
           <div class="form-group">
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+              <input type="checkbox" id="setting-admin-only-tabs" ${settings.admin_only_tabs !== false ? 'checked' : ''}>
+              ${this._t("lblAdminOnlyTabs")}
+            </label>
+            <div style="font-size: 12px; color: var(--secondary-text-color, #757575); margin-left: 24px; margin-top: 2px;">
+              ${this._t("descAdminOnlyTabs")}
+            </div>
+          </div>
+          <div class="form-group">
             <label class="form-label">${this._t("lblTestDuration")}</label>
             <input type="number" class="form-control" id="setting-test-timeout" value="${Math.round((settings.test_mode_timeout || 900) / 60)}">
           </div>
@@ -5697,6 +5750,26 @@
             });
           } catch (err) {
             console.error("Failed to save show_back_button setting:", err);
+          }
+          this._render();
+        });
+      }
+
+      // Admin Only Tabs Setting Change
+      const chkAdminOnlyTabs = root.querySelector('#setting-admin-only-tabs');
+      if (chkAdminOnlyTabs) {
+        chkAdminOnlyTabs.addEventListener('change', async (e) => {
+          const newVal = e.target.checked;
+          if (this._config && this._config.settings) {
+            this._config.settings.admin_only_tabs = newVal;
+          }
+          try {
+            await this._hass.callWS({
+              type: "safety_monitor/config/update_settings",
+              settings: { admin_only_tabs: newVal }
+            });
+          } catch (err) {
+            console.error("Failed to save admin_only_tabs setting:", err);
           }
           this._render();
         });
@@ -6404,6 +6477,7 @@
 
           const langChoice = root.querySelector('#setting-language')?.value || 'auto';
           const showBackChoice = root.querySelector('#setting-show-back-button')?.value || 'auto';
+          const adminOnlyTabs = root.querySelector('#setting-admin-only-tabs')?.checked !== false;
           const testMin = parseInt(root.querySelector('#setting-test-timeout').value, 10) || 15;
           const silMin = parseInt(root.querySelector('#setting-silence-timeout').value, 10) || 10;
           const dkSec = parseInt(root.querySelector('#setting-double-knock').value, 10) || 60;
@@ -6419,6 +6493,7 @@
           const updatedSettings = {
             language: langChoice,
             show_back_button: showBackChoice,
+            admin_only_tabs: adminOnlyTabs,
             test_mode_timeout: testMin * 60,
             silence_timeout: silMin * 60,
             double_knock_global_timeout: dkSec,
