@@ -78,6 +78,7 @@ While intrusion alarm systems are built around manual arming states (*Armed Away
   * Schedule automatic monthly self-tests to run unattended on a designated day and time.
 * **📜 Advanced Event Log with Filtering**: Filter historical events by category (Alarms, Silenced, Resets, Self-Tests, Drills, Battery, Offline) and time periods (Last 1h, 6h, 12h, **Max. 24 Hours**, 3 Days, or All).
 * **🌍 Multi-Language Support**: Fully localized in 10 major community languages: **English**, **Deutsch (German)**, **Français (French)**, **Español (Spanish)**, **Italiano (Italian)**, **Nederlands (Dutch)**, **Polski (Polish)**, **Português (Portuguese)**, **Русский (Russian)**, and **Svenska (Swedish)**. Automatically adapts to your Home Assistant user language or can be customized in *Zones & Settings*.
+* **🔙 Smart Back Button**: Automatically displays a top-left return button (`← Back` / `← Zurück`) when navigated to from any Lovelace dashboard, smoothly taking you back to your previous dashboard view.
 * **💻 Dedicated Custom Sidebar Dashboard**: Clean Lit / Web Component panel in Home Assistant's sidebar for complete sensor, zone, and action configuration without writing YAML.
 
 ---
@@ -579,6 +580,19 @@ cards:
           tap_action:
             action: call-service
             service: safety_monitor.reset
+
+#### Example 3: Dashboard Card with Smart Back Navigation
+Place this card or button on any Lovelace dashboard to quickly jump into Safety Monitor. When clicked, the top-left **Back Button (Zurück)** automatically appears in the panel to bring you directly back to your dashboard!
+
+```yaml
+type: button
+name: Safety Monitor
+icon: mdi:shield-alert
+tap_action:
+  action: navigate
+  navigation_path: /safety-monitor?back=1
+```
+*(Note: You can also use standard `/safety-monitor` without query parameters — automatic SPA detection will also recognize that you came from a dashboard).*
 ```
 
 ---

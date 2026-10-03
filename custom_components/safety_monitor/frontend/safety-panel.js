@@ -212,7 +212,12 @@
         "saving": "Speichern...",
         "saved": "Gespeichert",
         "yes": "Ja",
-        "no": "Nein"
+        "no": "Nein",
+        "btnBack": "Zurück",
+        "lblShowBackButton": "Zurück-Button im Header anzeigen:",
+        "backBtnAuto": "Automatisch (bei Aufruf aus Dashboard)",
+        "backBtnAlways": "Immer anzeigen",
+        "backBtnNever": "Nie anzeigen (Deaktiviert)"
     },
     "en": {
         "appName": "Safety Monitor",
@@ -418,7 +423,12 @@
         "saving": "Saving...",
         "saved": "Saved",
         "yes": "Yes",
-        "no": "No"
+        "no": "No",
+        "btnBack": "Back",
+        "lblShowBackButton": "Show Back button in header:",
+        "backBtnAuto": "Automatic (when navigated from dashboard)",
+        "backBtnAlways": "Always show",
+        "backBtnNever": "Never show (Disabled)"
     },
     "fr": {
         "appName": "Safety Monitor",
@@ -624,7 +634,12 @@
         "saving": "Enregistrement...",
         "saved": "Enregistré",
         "yes": "Oui",
-        "no": "Non"
+        "no": "Non",
+        "btnBack": "Retour",
+        "lblShowBackButton": "Afficher le bouton retour dans l'en-tête :",
+        "backBtnAuto": "Automatique (lors d'un accès depuis un tableau de bord)",
+        "backBtnAlways": "Toujours afficher",
+        "backBtnNever": "Ne jamais afficher (Désactivé)"
     },
     "es": {
         "appName": "Safety Monitor",
@@ -830,7 +845,12 @@
         "saving": "Guardando...",
         "saved": "Guardado",
         "yes": "Sí",
-        "no": "No"
+        "no": "No",
+        "btnBack": "Volver",
+        "lblShowBackButton": "Mostrar botón volver en la cabecera:",
+        "backBtnAuto": "Automático (al navegar desde un panel)",
+        "backBtnAlways": "Mostrar siempre",
+        "backBtnNever": "No mostrar nunca (Desactivado)"
     },
     "it": {
         "appName": "Safety Monitor",
@@ -1036,7 +1056,12 @@
         "saving": "Salvataggio...",
         "saved": "Salvato",
         "yes": "Sì",
-        "no": "No"
+        "no": "No",
+        "btnBack": "Indietro",
+        "lblShowBackButton": "Mostra pulsante indietro nell'intestazione:",
+        "backBtnAuto": "Automatico (se aperto da dashboard)",
+        "backBtnAlways": "Mostra sempre",
+        "backBtnNever": "Non mostrare mai (Disattivato)"
     },
     "nl": {
         "appName": "Safety Monitor",
@@ -1242,7 +1267,12 @@
         "saving": "Opslaan...",
         "saved": "Opgeslagen",
         "yes": "Ja",
-        "no": "Nee"
+        "no": "Nee",
+        "btnBack": "Terug",
+        "lblShowBackButton": "Terug-knop weergeven in koptekst:",
+        "backBtnAuto": "Automatisch (bij navigatie vanaf dashboard)",
+        "backBtnAlways": "Altijd weergeven",
+        "backBtnNever": "Nooit weergeven (Uitgeschakeld)"
     },
     "pl": {
         "appName": "Safety Monitor",
@@ -1448,7 +1478,12 @@
         "saving": "Zapisywanie...",
         "saved": "Zapisano",
         "yes": "Tak",
-        "no": "Nie"
+        "no": "Nie",
+        "btnBack": "Wstecz",
+        "lblShowBackButton": "Pokaż przycisk wstecz w nagłówku:",
+        "backBtnAuto": "Automatycznie (po przejściu z pulpitu)",
+        "backBtnAlways": "Zawsze pokazuj",
+        "backBtnNever": "Nigdy nie pokazuj (Wyłączone)"
     },
     "pt": {
         "appName": "Safety Monitor",
@@ -1654,7 +1689,12 @@
         "saving": "A guardar...",
         "saved": "Guardado",
         "yes": "Sim",
-        "no": "Não"
+        "no": "Não",
+        "btnBack": "Voltar",
+        "lblShowBackButton": "Mostrar botão voltar no cabeçalho:",
+        "backBtnAuto": "Automático (ao navegar a partir do painel)",
+        "backBtnAlways": "Mostrar sempre",
+        "backBtnNever": "Nunca mostrar (Desativado)"
     },
     "ru": {
         "appName": "Safety Monitor",
@@ -1860,7 +1900,12 @@
         "saving": "Сохранение...",
         "saved": "Сохранено",
         "yes": "Да",
-        "no": "Нет"
+        "no": "Нет",
+        "btnBack": "Назад",
+        "lblShowBackButton": "Показывать кнопку назад в заголовке:",
+        "backBtnAuto": "Автоматически (при переходе с панели)",
+        "backBtnAlways": "Всегда показывать",
+        "backBtnNever": "Никогда не показывать (Отключено)"
     },
     "sv": {
         "appName": "Safety Monitor",
@@ -2066,9 +2111,34 @@
         "saving": "Sparar...",
         "saved": "Sparat",
         "yes": "Ja",
-        "no": "Nej"
+        "no": "Nej",
+        "btnBack": "Tillbaka",
+        "lblShowBackButton": "Visa tillbaka-knapp i sidhuvudet:",
+        "backBtnAuto": "Automatiskt (vid navigering från instrumentpanel)",
+        "backBtnAlways": "Visa alltid",
+        "backBtnNever": "Visa aldrig (Inaktiverad)"
     }
 };
+
+  // Track previous dashboard navigation in Home Assistant SPA
+  try {
+    const handleSpaLocation = () => {
+      const path = window.location.pathname;
+      if (path && path !== '/safety-monitor' && !path.includes('safety_monitor')) {
+        if (path.includes('/lovelace') || path.includes('/dashboard')) {
+          sessionStorage.setItem('sm_last_dashboard', path + (window.location.search || ''));
+          sessionStorage.setItem('sm_nav_from_dashboard', 'true');
+        } else {
+          sessionStorage.setItem('sm_nav_from_dashboard', 'false');
+        }
+      }
+    };
+    window.addEventListener('location-changed', handleSpaLocation);
+    window.addEventListener('popstate', handleSpaLocation);
+    if (document.referrer && (document.referrer.includes('/lovelace') || document.referrer.includes('/dashboard'))) {
+      sessionStorage.setItem('sm_nav_from_dashboard', 'true');
+    }
+  } catch (_) {}
 
   const STANDARD_SERVICES = {
     valve: [
@@ -2222,6 +2292,73 @@
       this._statusPollInterval = null;
       this._candidateScrollTop = 0;
       this._lang = this._resolveLanguage("auto");
+    }
+
+    _canGoBack() {
+      // 1. Setting override in global settings
+      const setting = (this._config && this._config.settings && this._config.settings.show_back_button) || 'auto';
+      if (setting === 'never') return false;
+      if (setting === 'always') return true;
+
+      // 2. Explicit query parameters or hash
+      const urlParams = new URLSearchParams(window.location.search || '');
+      if (urlParams.has('back') || urlParams.has('from') || urlParams.has('return_to')) {
+        return true;
+      }
+      if (window.location.hash && (window.location.hash.includes('back') || window.location.hash.includes('from'))) {
+        return true;
+      }
+
+      // 3. Document Referrer (if from dashboard on same host)
+      if (document.referrer) {
+        try {
+          const ref = new URL(document.referrer);
+          if (ref.origin === window.location.origin) {
+            if (ref.pathname.includes('/lovelace') || ref.pathname.includes('/dashboard')) {
+              return true;
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 4. Session Storage tracking (if marked from dashboard in SPA)
+      try {
+        const fromDash = sessionStorage.getItem('sm_nav_from_dashboard');
+        const lastDash = sessionStorage.getItem('sm_last_dashboard');
+        if (fromDash === 'true' || (lastDash && lastDash !== '/safety-monitor')) {
+          return true;
+        }
+      } catch (_) {}
+
+      // 5. Browser history: if history.length > 1
+      if (window.history && window.history.length > 1) {
+        return true;
+      }
+
+      return false;
+    }
+
+    _handleBackNavigation() {
+      const urlParams = new URLSearchParams(window.location.search || '');
+      const returnTo = urlParams.get('return_to');
+      let targetPath = returnTo;
+      if (!targetPath) {
+        try {
+          targetPath = sessionStorage.getItem('sm_last_dashboard');
+        } catch (_) {}
+      }
+
+      try {
+        sessionStorage.removeItem('sm_nav_from_dashboard');
+      } catch (_) {}
+
+      if (window.history && window.history.length > 1) {
+        window.history.back();
+      } else if (targetPath) {
+        window.location.href = targetPath;
+      } else {
+        window.location.href = '/lovelace';
+      }
     }
 
     _resolveLanguage(setting) {
@@ -2892,6 +3029,47 @@
             margin-bottom: 20px;
             flex-wrap: wrap;
             gap: 12px;
+          }
+          .header-back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            height: 42px;
+            padding: 0 14px 0 10px;
+            border-radius: 10px;
+            background: var(--card-background-color, #ffffff);
+            border: 1px solid var(--divider-color, rgba(127, 127, 127, 0.25));
+            color: var(--primary-text-color, #212121);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+            transition: all 0.2s ease;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+          }
+          .header-back-btn:hover {
+            background: var(--primary-color, #0288d1);
+            color: #ffffff;
+            border-color: var(--primary-color, #0288d1);
+            transform: translateX(-2px);
+            box-shadow: 0 4px 10px rgba(2, 136, 209, 0.3);
+          }
+          .header-back-btn:active {
+            transform: translateX(0);
+          }
+          .header-back-btn svg {
+            display: block;
+            pointer-events: none;
+            flex-shrink: 0;
+          }
+          @media (max-width: 600px) {
+            .header-back-btn {
+              padding: 0 10px;
+            }
+            .header-back-btn .back-text {
+              display: none;
+            }
           }
           .title-area {
             display: flex;
@@ -3818,6 +3996,21 @@
           <!-- Header -->
           <div class="header">
             <div class="title-area">
+              ${this._canGoBack() ? `
+                <button
+                  class="header-back-btn"
+                  id="header-back-btn"
+                  type="button"
+                  title="${this._t("btnBack")}"
+                  aria-label="${this._t("btnBack")}"
+                >
+                  <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="19" y1="12" x2="5" y2="12"></line>
+                    <polyline points="12 19 5 12 12 5"></polyline>
+                  </svg>
+                  <span class="back-text">${this._t("btnBack")}</span>
+                </button>
+              ` : ''}
               <div
                 class="app-icon"
                 id="app-menu-toggle"
@@ -4952,6 +5145,14 @@
             </select>
           </div>
           <div class="form-group">
+            <label class="form-label">${this._t("lblShowBackButton")}</label>
+            <select class="form-control" id="setting-show-back-button">
+              <option value="auto" ${(settings.show_back_button || 'auto') === 'auto' ? 'selected' : ''}>${this._t("backBtnAuto")}</option>
+              <option value="always" ${settings.show_back_button === 'always' ? 'selected' : ''}>${this._t("backBtnAlways")}</option>
+              <option value="never" ${settings.show_back_button === 'never' ? 'selected' : ''}>${this._t("backBtnNever")}</option>
+            </select>
+          </div>
+          <div class="form-group">
             <label class="form-label">${this._t("lblTestDuration")}</label>
             <input type="number" class="form-control" id="setting-test-timeout" value="${Math.round((settings.test_mode_timeout || 900) / 60)}">
           </div>
@@ -5468,6 +5669,36 @@
 
     _attachEventListeners() {
       const root = this.shadowRoot;
+
+      // Header Back Button
+      const btnBack = root.querySelector('#header-back-btn');
+      if (btnBack) {
+        btnBack.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          this._handleBackNavigation();
+        });
+      }
+
+      // Show Back Button Setting Change
+      const selectShowBack = root.querySelector('#setting-show-back-button');
+      if (selectShowBack) {
+        selectShowBack.addEventListener('change', async (e) => {
+          const newVal = e.target.value;
+          if (this._config && this._config.settings) {
+            this._config.settings.show_back_button = newVal;
+          }
+          try {
+            await this._hass.callWS({
+              type: "safety_monitor/config/update_settings",
+              settings: { show_back_button: newVal }
+            });
+          } catch (err) {
+            console.error("Failed to save show_back_button setting:", err);
+          }
+          this._render();
+        });
+      }
 
       // Menu Toggle on Top-Left App Icon
       const btnMenu = root.querySelector('#app-menu-toggle');
@@ -6170,6 +6401,7 @@
           btnSaveSettings.classList.remove('test-success', 'test-error');
 
           const langChoice = root.querySelector('#setting-language')?.value || 'auto';
+          const showBackChoice = root.querySelector('#setting-show-back-button')?.value || 'auto';
           const testMin = parseInt(root.querySelector('#setting-test-timeout').value, 10) || 15;
           const silMin = parseInt(root.querySelector('#setting-silence-timeout').value, 10) || 10;
           const dkSec = parseInt(root.querySelector('#setting-double-knock').value, 10) || 60;
@@ -6184,6 +6416,7 @@
 
           const updatedSettings = {
             language: langChoice,
+            show_back_button: showBackChoice,
             test_mode_timeout: testMin * 60,
             silence_timeout: silMin * 60,
             double_knock_global_timeout: dkSec,

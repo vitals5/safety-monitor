@@ -151,6 +151,7 @@ def _get_default_settings() -> dict[str, Any]:
     """Return default global settings."""
     return {
         "language": "auto",
+        "show_back_button": "auto",
         "test_mode": False,
         "test_mode_timeout": DEFAULT_TEST_MODE_DURATION,
         "silence_timeout": DEFAULT_SILENCE_DURATION,
