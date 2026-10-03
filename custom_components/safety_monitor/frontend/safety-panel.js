@@ -4033,11 +4033,13 @@
                 <p class="app-subtitle">${this._t("subtitle")}</p>
               </div>
             </div>
-            <div>
-              <span class="badge ${state === 'normal' ? 'badge-status-off' : 'badge-status-on'}" style="font-size: 14px; padding: 6px 14px;">
-                ${this._getTypeIcon(state === 'triggered' ? 'smoke' : 'generic')} ${this._t("status" + state.charAt(0).toUpperCase() + state.slice(1).replace('_', '')) || state}
-              </span>
-            </div>
+            ${state !== 'normal' ? `
+              <div>
+                <span class="badge badge-status-on" style="font-size: 14px; padding: 6px 14px;">
+                  ${this._getTypeIcon(state === 'triggered' ? 'smoke' : 'generic')} ${this._t("status" + state.charAt(0).toUpperCase() + state.slice(1).replace('_', '')) || state}
+                </span>
+              </div>
+            ` : ''}
           </div>
 
           <!-- Navigation Tabs -->
