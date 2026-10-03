@@ -787,6 +787,11 @@ class SafetyCoordinator:
             self._silence_timer()
             self._silence_timer = None
 
+        if self._test_mode_timer is not None:
+            self._test_mode_timer()
+            self._test_mode_timer = None
+        await self.store.async_update_settings({"test_mode": False})
+
         # Stop repeating actions
         self._cancel_repeating_actions()
 
@@ -951,6 +956,27 @@ class SafetyCoordinator:
                 err,
             )
             return False
+
+    async def async_trigger_all_sensor_buttons(
+        self, button_type: str
+    ) -> dict[str, Any]:
+        """Trigger physical button (test or drill) for all configured sensors."""
+        sensors = self.store.async_get_sensors()
+        triggered: list[str] = []
+        target_field = "drill_entity" if button_type == "drill" else "test_entity"
+        for entity_id, cfg in sensors.items():
+            if not cfg.get("enabled", True):
+                continue
+            target_btn = cfg.get(target_field)
+            if target_btn:
+                success = await self.async_trigger_sensor_button(entity_id, button_type)
+                if success:
+                    triggered.append(entity_id)
+        return {
+            "button_type": button_type,
+            "count": len(triggered),
+            "triggered": triggered,
+        }
 
     async def async_set_sensor_ignored(
         self, entity_id: str, ignored: bool = True

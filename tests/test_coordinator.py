@@ -292,6 +292,18 @@ class TestSafetyCoordinator(unittest.IsolatedAsyncioTestCase):
         await self.coordinator.async_set_test_mode(False)
         self.assertEqual(self.coordinator.state, STATE_NORMAL)
 
+    async def test_reset_while_in_test_mode_clears_timer_and_settings(self) -> None:
+        """Test calling async_reset while in test mode cancels timer and clears test_mode setting."""
+        await self.coordinator.async_set_test_mode(True, duration=900)
+        self.assertEqual(self.coordinator.state, STATE_TESTING)
+        self.assertTrue(self.storage.async_get_settings().get("test_mode"))
+        self.assertIsNotNone(self.coordinator._test_mode_timer)
+
+        await self.coordinator.async_reset(force=True)
+        self.assertEqual(self.coordinator.state, STATE_NORMAL)
+        self.assertFalse(self.storage.async_get_settings().get("test_mode"))
+        self.assertIsNone(self.coordinator._test_mode_timer)
+
     async def test_manual_trigger(self) -> None:
         """Test manual trigger."""
         await self.coordinator.async_trigger_manual("Evacuation Test")
@@ -353,6 +365,35 @@ class TestSafetyCoordinator(unittest.IsolatedAsyncioTestCase):
         called_targets = [c[1]["target"]["entity_id"][0] for c in calls if c[0][0] == "button" and c[0][1] == "press"]
         self.assertIn("button.smoke_bedroom_self_test", called_targets)
         self.assertIn("button.smoke_bedroom_drill", called_targets)
+
+    async def test_trigger_all_sensor_buttons(self) -> None:
+        """Test triggering drill or test button on all configured sensors."""
+        self.hass.services.async_call = AsyncMock()
+        await self.storage.async_save_sensor({
+            "entity_id": "binary_sensor.smoke_hallway",
+            "name": "Hallway Smoke",
+            "test_entity": "button.smoke_hallway_test",
+            "drill_entity": "button.smoke_hallway_drill",
+            "enabled": True,
+        })
+        await self.storage.async_save_sensor({
+            "entity_id": "binary_sensor.smoke_kitchen",
+            "name": "Kitchen Smoke",
+            "test_entity": "button.smoke_kitchen_test",
+            "drill_entity": "button.smoke_kitchen_drill",
+            "enabled": True,
+        })
+        await self.storage.async_save_sensor({
+            "entity_id": "binary_sensor.water_basement",
+            "name": "Basement Water",
+            "enabled": True,
+        })
+
+        res = await self.coordinator.async_trigger_all_sensor_buttons("drill")
+        self.assertEqual(res["button_type"], "drill")
+        self.assertEqual(res["count"], 2)
+        self.assertIn("binary_sensor.smoke_hallway", res["triggered"])
+        self.assertIn("binary_sensor.smoke_kitchen", res["triggered"])
 
     async def test_sensor_temporary_ignore_and_auto_clear(self) -> None:
         """Test temporarily ignoring a sensor mutes alarm until sensor clears."""

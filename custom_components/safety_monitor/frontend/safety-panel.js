@@ -25,6 +25,10 @@
       statusSilencedDesc: "Akustische Sirenen vorübergehend pausiert. Die 24/7 Gefahrenüberwachung bleibt aktiv!",
       statusTesting: "Test- & Wartungsmodus",
       statusTestingDesc: "Wartungsmodus aktiv: Sirenen und Notfall-Abschaltungen sind vorübergehend unterdrückt.",
+      testModeActiveTitle: "Test- & Wartungsmodus ist AKTIV",
+      testModeActiveDesc: "Sirenen und Notfall-Abschaltungen sind unterdrückt. Sie können Melder jetzt gefahrlos testen:",
+      btnDrillAll: "Alle Melder: Alarmübung",
+      btnSelfTestAll: "Alle Melder: Selbsttest",
       btnSilence: "Sirenen stummschalten",
       btnSilenceAgain: "Erneut stummschalten",
       btnReset: "Quittieren / Zurücksetzen",
@@ -150,6 +154,10 @@
       statusSilencedDesc: "Acoustic sirens temporarily silenced. 24/7 hazard monitoring remains active!",
       statusTesting: "Test & Maintenance Mode",
       statusTestingDesc: "Maintenance mode active: External sirens and emergency shutoffs are suppressed.",
+      testModeActiveTitle: "Test & Maintenance Mode is ACTIVE",
+      testModeActiveDesc: "Sirens and emergency shutoffs are suppressed. You can safely test devices now:",
+      btnDrillAll: "All Sensors: Alarm Drill",
+      btnSelfTestAll: "All Sensors: Self-Test",
       btnSilence: "Silence Sirens",
       btnSilenceAgain: "Silence Again",
       btnReset: "Acknowledge / Reset",
@@ -432,18 +440,35 @@
       return text;
     }
 
-    async _loadData() {
+    async _loadData(loadCandidates = false) {
       if (!this._hass) return;
       try {
         const config = await this._hass.callWS({ type: "safety_monitor/config/get" });
-        this._config = config || this._config;
-        const candResult = await this._hass.callWS({ type: "safety_monitor/sensors/list_candidates" });
-        this._candidates = (candResult && candResult.candidates) || [];
+        if (config) {
+          this._config = Object.assign({}, this._config, config);
+        }
         if (!this._modalOpen) {
           this._render();
         }
       } catch (err) {
-        console.error("Error loading Safety Monitor data:", err);
+        console.error("Error loading Safety Monitor config:", err);
+      }
+
+      if (loadCandidates || this._activeTab === "sensors" || !this._candidates || this._candidates.length === 0) {
+        this._loadCandidates();
+      }
+    }
+
+    async _loadCandidates() {
+      if (!this._hass) return;
+      try {
+        const candResult = await this._hass.callWS({ type: "safety_monitor/sensors/list_candidates" });
+        this._candidates = (candResult && candResult.candidates) || [];
+        if (this._activeTab === "sensors" && !this._modalOpen) {
+          this._render();
+        }
+      } catch (err) {
+        console.error("Error loading candidate sensors:", err);
       }
     }
 
@@ -564,15 +589,70 @@
     }
 
     async _toggleTestMode() {
-      const current = this._config.state === "testing";
+      const root = this.shadowRoot;
+      const btn = root ? root.querySelector('#btn-test-mode') : null;
+      const current = this._config.state === "testing" || (this._config.settings && this._config.settings.test_mode);
+      const orig = btn ? btn.innerHTML : '';
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = current ? '⏳ Beende Test-Modus...' : '⏳ Aktiviere Test-Modus...';
+      }
       try {
-        await this._hass.callWS({
+        const res = await this._hass.callWS({
           type: "safety_monitor/action/test_mode",
           enabled: !current,
         });
+        const newState = (res && res.state) ? res.state : (!current ? 'testing' : 'normal');
+        this._config.state = newState;
+        if (!this._config.settings) this._config.settings = {};
+        this._config.settings.test_mode = (newState === 'testing');
+        this._render();
         await this._loadData();
       } catch (err) {
-        alert("Error toggling test mode: " + err.message);
+        if (btn) {
+          btn.innerHTML = '❌ Fehler';
+          setTimeout(() => {
+            btn.innerHTML = orig;
+            btn.disabled = false;
+          }, 2500);
+        }
+        alert("Fehler beim Umschalten des Test-Modus: " + (err?.message || err?.error || err));
+      }
+    }
+
+    async _triggerAllSensorButtons(btnType) {
+      const root = this.shadowRoot;
+      const btn = root ? root.querySelector(btnType === 'drill' ? '#btn-test-drill-all' : '#btn-test-self-all') : null;
+      const orig = btn ? btn.innerHTML : '';
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Sende...';
+      }
+      try {
+        const res = await this._hass.callWS({
+          type: "safety_monitor/action/trigger_all_sensor_buttons",
+          button_type: btnType,
+        });
+        if (btn) {
+          if (res && res.count > 0) {
+            btn.innerHTML = `✅ ${res.count} Melder ausgelöst`;
+          } else {
+            btn.innerHTML = 'ℹ️ Keine Buttons hinterlegt';
+            btn.title = 'In den Einstellungen der Sensoren können Alarmübungs- und Selbsttest-Buttons konfiguriert werden.';
+          }
+          setTimeout(() => {
+            btn.innerHTML = orig;
+            btn.disabled = false;
+          }, 2500);
+        }
+      } catch (err) {
+        if (btn) {
+          btn.innerHTML = '❌ Fehler';
+          setTimeout(() => {
+            btn.innerHTML = orig;
+            btn.disabled = false;
+          }, 2500);
+        }
       }
     }
 
@@ -1909,6 +1989,36 @@
           </div>
         </div>
 
+        <!-- Test Mode Active Action Console -->
+        ${state === 'testing' ? `
+          <div class="card" style="border-left: 4px solid #00acc1; background: rgba(0, 172, 193, 0.08); margin-bottom: 20px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <span style="font-size: 28px;">🧪</span>
+                <div>
+                  <h4 style="margin: 0; font-size: 15px; font-weight: 700; color: #00838f;">
+                    ${this._t("testModeActiveTitle")}
+                  </h4>
+                  <p style="margin: 3px 0 0 0; font-size: 13px; color: var(--secondary-text-color, #757575);">
+                    ${this._t("testModeActiveDesc")}
+                  </p>
+                </div>
+              </div>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button class="btn-sm" id="btn-test-drill-all" style="cursor: pointer; background: #0288d1; color: #fff; border: none; padding: 7px 12px; border-radius: 6px; font-weight: 600; font-size: 12px;">
+                  📢 ${this._t("btnDrillAll")}
+                </button>
+                <button class="btn-sm" id="btn-test-self-all" style="cursor: pointer; background: #00897b; color: #fff; border: none; padding: 7px 12px; border-radius: 6px; font-weight: 600; font-size: 12px;">
+                  🔔 ${this._t("btnSelfTestAll")}
+                </button>
+                <button class="btn-sm" id="btn-test-exit" style="cursor: pointer; background: #e53935; color: #fff; border: none; padding: 7px 12px; border-radius: 6px; font-weight: 600; font-size: 12px;">
+                  ⏹️ ${this._t("btnExitTestMode")}
+                </button>
+              </div>
+            </div>
+          </div>
+        ` : ''}
+
         <!-- Low Battery Warning Banner -->
         ${lowBatteryEntries.length > 0 ? `
           <div class="card" style="border-left: 4px solid #f57f17; background: rgba(245, 127, 23, 0.08); margin-bottom: 20px;">
@@ -3037,6 +3147,15 @@
 
       const btnTestMode = root.querySelector('#btn-test-mode');
       if (btnTestMode) btnTestMode.addEventListener('click', () => this._toggleTestMode());
+
+      const btnTestExit = root.querySelector('#btn-test-exit');
+      if (btnTestExit) btnTestExit.addEventListener('click', () => this._toggleTestMode());
+
+      const btnTestDrillAll = root.querySelector('#btn-test-drill-all');
+      if (btnTestDrillAll) btnTestDrillAll.addEventListener('click', () => this._triggerAllSensorButtons('drill'));
+
+      const btnTestSelfAll = root.querySelector('#btn-test-self-all');
+      if (btnTestSelfAll) btnTestSelfAll.addEventListener('click', () => this._triggerAllSensorButtons('test'));
 
       const btnManualTrigger = root.querySelector('#btn-manual-trigger');
       if (btnManualTrigger) btnManualTrigger.addEventListener('click', () => this._manualTrigger());

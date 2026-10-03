@@ -7,7 +7,12 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.components import websocket_api
-from homeassistant.const import ATTR_DEVICE_CLASS, ATTR_FRIENDLY_NAME
+from homeassistant.const import (
+    ATTR_DEVICE_CLASS,
+    ATTR_FRIENDLY_NAME,
+    STATE_UNAVAILABLE,
+    STATE_UNKNOWN,
+)
 from homeassistant.core import HomeAssistant, callback
 import homeassistant.helpers.config_validation as cv
 
@@ -39,6 +44,7 @@ def async_register_websocket_api(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_save_sensor)
     websocket_api.async_register_command(hass, ws_delete_sensor)
     websocket_api.async_register_command(hass, ws_trigger_sensor_button)
+    websocket_api.async_register_command(hass, ws_trigger_all_sensor_buttons)
     websocket_api.async_register_command(hass, ws_ignore_sensor)
     websocket_api.async_register_command(hass, ws_save_zone)
     websocket_api.async_register_command(hass, ws_delete_zone)
@@ -78,6 +84,8 @@ async def ws_get_config(
             "settings": store.async_get_settings(),
             "history": store.async_get_history(limit=50),
             "state": coordinator.state if coordinator else "normal",
+            "active_triggers": coordinator.active_triggers if coordinator else {},
+            "offline_sensors": coordinator.offline_sensors if coordinator else [],
             "ignored_sensors": coordinator.ignored_sensors if coordinator else [],
             "sensor_batteries": coordinator.sensor_batteries if coordinator else {},
             "low_battery_sensors": coordinator.low_battery_sensors if coordinator else {},
@@ -124,6 +132,11 @@ async def ws_list_candidate_sensors(
 
     candidates: list[dict[str, Any]] = []
     all_states = hass.states.async_all()
+    # Filter potential sibling states once instead of iterating over every HA state for every binary sensor
+    potential_siblings = [
+        s for s in all_states if s.domain in ("button", "switch", "input_boolean", "sensor")
+    ]
+
     for state_obj in hass.states.async_all("binary_sensor"):
         dev_class = state_obj.attributes.get(ATTR_DEVICE_CLASS, "")
         is_hazard_class = dev_class in HAZARD_DEVICE_CLASSES or any(
@@ -148,7 +161,7 @@ async def ws_list_candidate_sensors(
                 except (ValueError, TypeError):
                     pass
 
-        for s in all_states:
+        for s in potential_siblings:
             s_eid = s.entity_id
             if base_name in s_eid and s_eid != state_obj.entity_id:
                 s_lower = s_eid.lower()
@@ -160,18 +173,22 @@ async def ws_list_candidate_sensors(
                         suggested_drill = s_eid
                     elif any(k in s_lower for k in ["self_test", "selbsttest", "test"]):
                         suggested_test = s_eid
-                elif domain == "sensor":
+                elif domain == "sensor" and battery_level is None:
                     if s.attributes.get(ATTR_DEVICE_CLASS) == "battery" or s_lower.endswith("_battery") or s_lower.endswith("_batterie"):
                         suggested_battery = s_eid
-                        if battery_level is None and s.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+                        if s.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
                             try:
                                 battery_level = float(s.state)
                             except (ValueError, TypeError):
                                 pass
 
+        friendly_name = state_obj.attributes.get(ATTR_FRIENDLY_NAME)
+        if not friendly_name:
+            friendly_name = state_obj.entity_id
+
         candidates.append({
             "entity_id": state_obj.entity_id,
-            "name": state_obj.attributes.get(ATTR_FRIENDLY_NAME, state_obj.entity_id),
+            "name": friendly_name,
             "device_class": dev_class,
             "state": state_obj.state,
             "is_hazard_class": is_hazard_class,
@@ -183,8 +200,8 @@ async def ws_list_candidate_sensors(
             "battery_level": battery_level,
         })
 
-    # Sort hazard candidates to top
-    candidates.sort(key=lambda x: (not x["is_hazard_class"], x["monitored"], x["name"]))
+    # Sort hazard candidates to top safely
+    candidates.sort(key=lambda x: (not x["is_hazard_class"], x["monitored"], str(x.get("name") or x["entity_id"])))
     connection.send_result(msg["id"], {"candidates": candidates})
 
 
@@ -510,6 +527,28 @@ async def ws_trigger_sensor_button(
         msg["entity_id"], msg["button_type"]
     )
     connection.send_result(msg["id"], {"success": success})
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "safety_monitor/action/trigger_all_sensor_buttons",
+        vol.Required("button_type"): vol.In(["test", "drill"]),
+    }
+)
+@websocket_api.async_response
+async def ws_trigger_all_sensor_buttons(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Trigger test or drill buttons on all configured sensors."""
+    _, coordinator = _get_integration_instances(hass)
+    if not coordinator:
+        connection.send_error(msg["id"], "not_found", "Safety Monitor not initialized")
+        return
+
+    result = await coordinator.async_trigger_all_sensor_buttons(msg["button_type"])
+    connection.send_result(msg["id"], result)
 
 
 @websocket_api.websocket_command(

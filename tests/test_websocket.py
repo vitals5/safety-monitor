@@ -22,6 +22,7 @@ from custom_components.safety_monitor.websocket import (
     ws_set_test_mode,
     ws_silence_alarm,
     ws_test_action,
+    ws_trigger_all_sensor_buttons,
     ws_trigger_sensor_button,
     ws_update_settings,
 )
@@ -51,6 +52,9 @@ class TestWebSocketAPI(unittest.IsolatedAsyncioTestCase):
         self.coordinator.async_silence = AsyncMock(return_value=True)
         self.coordinator.async_reset = AsyncMock(return_value=True)
         self.coordinator.async_set_test_mode = AsyncMock(return_value=True)
+        self.coordinator.async_trigger_all_sensor_buttons = AsyncMock(
+            return_value={"button_type": "test", "count": 2, "triggered": ["binary_sensor.smoke_1", "binary_sensor.smoke_2"]}
+        )
         self.coordinator.actions = MagicMock()
         self.coordinator.actions.async_test_action = AsyncMock(return_value=True)
         self.coordinator.actions.async_test_action_dict = AsyncMock(return_value=True)
@@ -88,27 +92,43 @@ class TestWebSocketAPI(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(res["settings"]["test_mode_timeout"], 600)
 
     async def test_ws_list_candidates(self) -> None:
-        """Test scanning candidate sensors."""
+        """Test scanning candidate sensors including None friendly_name and battery sibling."""
         st1 = MagicMock()
         st1.entity_id = "binary_sensor.smoke_detector"
+        st1.domain = "binary_sensor"
         st1.state = "off"
-        st1.attributes = {"device_class": "smoke", "friendly_name": "Smoke Detector"}
+        # Test friendly_name being None (as can happen in HA)
+        st1.attributes = {"device_class": "smoke", "friendly_name": None}
 
         st2 = MagicMock()
         st2.entity_id = "binary_sensor.motion_hallway"
+        st2.domain = "binary_sensor"
         st2.state = "off"
         st2.attributes = {"device_class": "motion", "friendly_name": "Motion Sensor"}
 
-        self.hass.states.async_all.return_value = [st1, st2]
+        st3 = MagicMock()
+        st3.entity_id = "sensor.smoke_detector_battery"
+        st3.domain = "sensor"
+        st3.state = "92"
+        st3.attributes = {"device_class": "battery", "friendly_name": "Smoke Detector Battery"}
+
+        def mock_async_all(domain=None):
+            if domain == "binary_sensor":
+                return [st1, st2]
+            return [st1, st2, st3]
+
+        self.hass.states.async_all = MagicMock(side_effect=mock_async_all)
 
         msg = {"id": 3, "type": "safety_monitor/sensors/list_candidates"}
         await ws_list_candidate_sensors(self.hass, self.connection, msg)
         self.connection.send_result.assert_called_once()
         candidates = self.connection.send_result.call_args[0][1]["candidates"]
         self.assertEqual(len(candidates), 2)
-        # Smoke detector is recognized as hazard
+        # Smoke detector is recognized as hazard and matched sibling battery
         smoke_cand = next(c for c in candidates if c["entity_id"] == "binary_sensor.smoke_detector")
         self.assertTrue(smoke_cand["is_hazard_class"])
+        self.assertEqual(smoke_cand["suggested_battery"], "sensor.smoke_detector_battery")
+        self.assertEqual(smoke_cand["battery_level"], 92.0)
 
     async def test_ws_sensor_save_and_delete(self) -> None:
         """Test saving and deleting a sensor via WS."""
@@ -275,6 +295,19 @@ class TestWebSocketAPI(unittest.IsolatedAsyncioTestCase):
         await ws_test_action(self.hass, self.connection, msg_id)
         self.coordinator.actions.async_test_action.assert_called_once_with("act_existing", context=None)
         self.connection.send_result.assert_called_once_with(17, {"success": True})
+
+    async def test_ws_trigger_all_sensor_buttons(self) -> None:
+        """Test triggering test or drill buttons on all sensors."""
+        msg = {
+            "id": 18,
+            "type": "safety_monitor/action/trigger_all_sensor_buttons",
+            "button_type": "test",
+        }
+        await ws_trigger_all_sensor_buttons(self.hass, self.connection, msg)
+        self.coordinator.async_trigger_all_sensor_buttons.assert_called_once_with("test")
+        self.connection.send_result.assert_called_once()
+        res = self.connection.send_result.call_args[0][1]
+        self.assertEqual(res["count"], 2)
 
 
 if __name__ == "__main__":
