@@ -40,6 +40,30 @@
       noActiveHazards: "Keine aktiven Gefahrenmeldungen vorhanden.",
       eventHistoryTitle: "Ereignis-Protokoll",
       noEvents: "Bisher keine Ereignisse protokolliert.",
+      historyFilterType: "Art des Ereignisses:",
+      historyFilterTime: "Zeitraum:",
+      historyTime24h: "Max. 24 Stunden",
+      historyTime1h: "Letzte 1 Stunde",
+      historyTime6h: "Letzte 6 Stunden",
+      historyTime12h: "Letzte 12 Stunden",
+      historyTime3d: "Letzte 3 Tage",
+      historyTimeAll: "Gesamter Verlauf (Alle)",
+      historyTypeAll: "Alle Ereignisarten",
+      historyTypeAlarms: "🚨 Alarme & Gefahren",
+      historyTypeSilenced: "🔕 Stummschaltungen",
+      historyTypeReset: "✅ Quittierung & Entwarnung",
+      historyTypeSelfTestAll: "🧪 Selbsttests (Alle)",
+      historyTypeSelfTestFailed: "❌ Selbsttest fehlgeschlagen",
+      historyTypeSelfTestSuccess: "✅ Selbsttest erfolgreich",
+      historyTypeDrills: "🔔 Alarmübungen",
+      historyTypeTestMode: "🛡️ Test-Modus",
+      historyTypeBattery: "🪫 Schwache Batterie",
+      historyTypeOffline: "📡 Melder Offline / Online",
+      historyTypeIgnored: "🙈 Ignoriert / Reaktiviert",
+      historyNoMatchingEvents: "Keine Ereignisse entsprechen den aktuellen Filterkriterien.",
+      historyShowAllEvents: "Alle Ereignisse anzeigen",
+      historyCountBadge: "{filtered} von {total} Ereignissen",
+      lblHistoryDefaultTime: "Standard-Zeitraum im Ereignis-Protokoll:",
       searchSensorsPlaceholder: "Sensoren durchsuchen...",
       searchCandidatesPlaceholder: "Gefahrensensoren filtern...",
       filterAll: "Alle",
@@ -194,6 +218,30 @@
       noActiveHazards: "No active hazard alerts at this time.",
       eventHistoryTitle: "Event Log",
       noEvents: "No events recorded yet.",
+      historyFilterType: "Event Type:",
+      historyFilterTime: "Time Period:",
+      historyTime24h: "Max. 24 Hours",
+      historyTime1h: "Last 1 Hour",
+      historyTime6h: "Last 6 Hours",
+      historyTime12h: "Last 12 Hours",
+      historyTime3d: "Last 3 Days",
+      historyTimeAll: "All Recorded Events",
+      historyTypeAll: "All Event Types",
+      historyTypeAlarms: "🚨 Alarms & Hazards",
+      historyTypeSilenced: "🔕 Silenced",
+      historyTypeReset: "✅ Reset & All Clear",
+      historyTypeSelfTestAll: "🧪 Self-Tests (All)",
+      historyTypeSelfTestFailed: "❌ Self-Test Failed",
+      historyTypeSelfTestSuccess: "✅ Self-Test Passed",
+      historyTypeDrills: "🔔 Alarm Drills",
+      historyTypeTestMode: "🛡️ Test Mode",
+      historyTypeBattery: "🪫 Low Battery",
+      historyTypeOffline: "📡 Sensor Offline / Online",
+      historyTypeIgnored: "🙈 Ignored / Unignored",
+      historyNoMatchingEvents: "No events match the current filter criteria.",
+      historyShowAllEvents: "Show all events",
+      historyCountBadge: "{filtered} of {total} events",
+      lblHistoryDefaultTime: "Default Period in Event Log:",
       searchSensorsPlaceholder: "Search sensors...",
       searchCandidatesPlaceholder: "Filter hazard sensors...",
       filterAll: "All",
@@ -455,6 +503,14 @@
       this._zoneFilter = "all";
       this._candidateSearchFilter = "";
       this._candidateTypeFilter = "all";
+      let savedTypeFilter = "all";
+      let savedTimeFilter = "24h";
+      try {
+        savedTypeFilter = localStorage.getItem("sm_history_type_filter") || "all";
+        savedTimeFilter = localStorage.getItem("sm_history_time_filter") || "24h";
+      } catch (_) {}
+      this._historyTypeFilter = savedTypeFilter;
+      this._historyTimeFilter = savedTimeFilter;
       this._editingSensor = null;
       this._editingZone = null;
       this._editingAction = null;
@@ -500,6 +556,11 @@
         const config = await this._hass.callWS({ type: "safety_monitor/config/get" });
         if (config) {
           this._config = Object.assign({}, this._config, config);
+          try {
+            if (!localStorage.getItem("sm_history_time_filter") && this._config.settings && this._config.settings.history_default_time) {
+              this._historyTimeFilter = this._config.settings.history_default_time;
+            }
+          } catch (_) {}
         }
         if (!this._modalOpen) {
           this._render();
@@ -1763,6 +1824,13 @@
             color: var(--secondary-text-color, #757575);
             margin: 2px 0 0 0;
           }
+          .history-container::-webkit-scrollbar {
+            width: 6px;
+          }
+          .history-container::-webkit-scrollbar-thumb {
+            background-color: var(--divider-color, rgba(127, 127, 127, 0.3));
+            border-radius: 3px;
+          }
 
           /* Phase Cards in Actions Tab */
           .phase-card {
@@ -2117,6 +2185,152 @@
       }
     }
 
+    _getHistoryEventIcon(evt) {
+      const ev = (evt && evt.event) || '';
+      if (ev === 'sensor_triggered' || ev === 'manual_alarm') return '🚨';
+      if (ev === 'silenced' || ev === 'sensor_silence') return '🔕';
+      if (ev === 'reset') return '✅';
+      if (ev === 'self_test_failed') return '❌';
+      if (ev === 'self_test_success') return '✅';
+      if (ev === 'sensor_drill') return '🔔';
+      if (ev === 'sensor_test') return '🧪';
+      if (ev === 'test_mode') return '🛡️';
+      if (ev === 'battery_low') return '🪫';
+      if (ev === 'sensor_offline') return '⚠️';
+      if (ev === 'sensor_online') return '📡';
+      if (ev === 'sensor_ignored') return '🙈';
+      if (ev === 'sensor_unignored') return '👁️';
+      return '📜';
+    }
+
+    _getHistoryEventBadge(evt) {
+      const ev = (evt && evt.event) || '';
+      const de = this._lang === 'de';
+      if (ev === 'sensor_triggered' || ev === 'manual_alarm') {
+        return `<span class="badge" style="background:#d32f2f; color:#fff; font-size:11px; padding:2px 8px; border-radius:4px;">🚨 ${de ? 'Alarm' : 'Alarm'}</span>`;
+      }
+      if (ev === 'silenced' || ev === 'sensor_silence') {
+        return `<span class="badge" style="background:#f57c00; color:#fff; font-size:11px; padding:2px 8px; border-radius:4px;">🔕 ${de ? 'Stumm' : 'Silenced'}</span>`;
+      }
+      if (ev === 'reset') {
+        return `<span class="badge" style="background:#2e7d32; color:#fff; font-size:11px; padding:2px 8px; border-radius:4px;">✅ ${de ? 'Entwarnung' : 'All Clear'}</span>`;
+      }
+      if (ev === 'self_test_failed') {
+        return `<span class="badge" style="background:#c62828; color:#fff; font-size:11px; padding:2px 8px; border-radius:4px;">❌ ${de ? 'Fehlgeschlagen' : 'Failed'}</span>`;
+      }
+      if (ev === 'self_test_success') {
+        return `<span class="badge" style="background:#2e7d32; color:#fff; font-size:11px; padding:2px 8px; border-radius:4px;">✅ ${de ? 'Bestanden' : 'Passed'}</span>`;
+      }
+      if (ev === 'sensor_drill') {
+        return `<span class="badge" style="background:#7b1fa2; color:#fff; font-size:11px; padding:2px 8px; border-radius:4px;">🔔 ${de ? 'Alarmübung' : 'Drill'}</span>`;
+      }
+      if (ev === 'sensor_test') {
+        return `<span class="badge" style="background:#0288d1; color:#fff; font-size:11px; padding:2px 8px; border-radius:4px;">🧪 ${de ? 'Selbsttest' : 'Self-Test'}</span>`;
+      }
+      if (ev === 'test_mode') {
+        return `<span class="badge" style="background:#00796b; color:#fff; font-size:11px; padding:2px 8px; border-radius:4px;">🛡️ ${de ? 'Test-Modus' : 'Test Mode'}</span>`;
+      }
+      if (ev === 'battery_low') {
+        return `<span class="badge" style="background:#e65100; color:#fff; font-size:11px; padding:2px 8px; border-radius:4px;">🪫 ${de ? 'Batterie' : 'Battery'}</span>`;
+      }
+      if (ev === 'sensor_offline') {
+        return `<span class="badge" style="background:#b71c1c; color:#fff; font-size:11px; padding:2px 8px; border-radius:4px;">⚠️ ${de ? 'Offline' : 'Offline'}</span>`;
+      }
+      if (ev === 'sensor_online') {
+        return `<span class="badge" style="background:#388e3c; color:#fff; font-size:11px; padding:2px 8px; border-radius:4px;">📡 ${de ? 'Online' : 'Online'}</span>`;
+      }
+      if (ev === 'sensor_ignored') {
+        return `<span class="badge" style="background:#616161; color:#fff; font-size:11px; padding:2px 8px; border-radius:4px;">🙈 ${de ? 'Ignoriert' : 'Ignored'}</span>`;
+      }
+      if (ev === 'sensor_unignored') {
+        return `<span class="badge" style="background:#455a64; color:#fff; font-size:11px; padding:2px 8px; border-radius:4px;">👁️ ${de ? 'Reaktiviert' : 'Reactivated'}</span>`;
+      }
+      return '';
+    }
+
+    _formatEventTime(timestamp) {
+      if (!timestamp) return '';
+      const d = new Date(timestamp);
+      if (isNaN(d.getTime())) return timestamp;
+      const now = Date.now();
+      const diffSec = Math.max(0, Math.floor((now - d.getTime()) / 1000));
+      let rel = '';
+      if (diffSec < 60) {
+        rel = this._lang === 'de' ? 'gerade eben' : 'just now';
+      } else if (diffSec < 3600) {
+        const mins = Math.floor(diffSec / 60);
+        rel = this._lang === 'de' ? `vor ${mins} Min.` : `${mins}m ago`;
+      } else if (diffSec < 86400) {
+        const hrs = Math.floor(diffSec / 3600);
+        rel = this._lang === 'de' ? `vor ${hrs} Std.` : `${hrs}h ago`;
+      } else {
+        const days = Math.floor(diffSec / 86400);
+        rel = this._lang === 'de' ? `vor ${days} Tag(en)` : `${days}d ago`;
+      }
+      return `${d.toLocaleString()} (${rel})`;
+    }
+
+    _getFilteredHistory(history) {
+      if (!Array.isArray(history)) return [];
+      const typeFilter = this._historyTypeFilter || 'all';
+      const timeFilter = this._historyTimeFilter || '24h';
+      const now = Date.now();
+
+      let filtered = history.slice().reverse(); // Most recent first
+
+      // 1. Time filter
+      if (timeFilter !== 'all') {
+        let maxAgeMs = 24 * 3600 * 1000;
+        if (timeFilter === '1h') maxAgeMs = 1 * 3600 * 1000;
+        else if (timeFilter === '6h') maxAgeMs = 6 * 3600 * 1000;
+        else if (timeFilter === '12h') maxAgeMs = 12 * 3600 * 1000;
+        else if (timeFilter === '24h') maxAgeMs = 24 * 3600 * 1000;
+        else if (timeFilter === '3d') maxAgeMs = 3 * 24 * 3600 * 1000;
+
+        filtered = filtered.filter(evt => {
+          if (!evt.timestamp) return true;
+          const t = new Date(evt.timestamp).getTime();
+          if (isNaN(t)) return true;
+          return (now - t) <= maxAgeMs;
+        });
+      }
+
+      // 2. Event type filter
+      if (typeFilter !== 'all') {
+        filtered = filtered.filter(evt => {
+          const ev = evt.event || '';
+          switch (typeFilter) {
+            case 'alarms':
+              return ev === 'sensor_triggered' || ev === 'manual_alarm';
+            case 'silenced':
+              return ev === 'silenced' || ev === 'sensor_silence';
+            case 'reset':
+              return ev === 'reset';
+            case 'self_tests':
+              return ev === 'self_test_failed' || ev === 'self_test_success' || ev === 'sensor_test';
+            case 'self_test_failed':
+              return ev === 'self_test_failed';
+            case 'self_test_success':
+              return ev === 'self_test_success';
+            case 'drills':
+              return ev === 'sensor_drill';
+            case 'test_mode':
+              return ev === 'test_mode';
+            case 'battery_low':
+              return ev === 'battery_low';
+            case 'offline_online':
+              return ev === 'sensor_offline' || ev === 'sensor_online';
+            case 'ignored':
+              return ev === 'sensor_ignored' || ev === 'sensor_unignored';
+            default:
+              return ev === typeFilter;
+          }
+        });
+      }
+
+      return filtered;
+    }
+
     _renderOverviewTab(state, activeTriggers, history) {
       let icon = "🛡️";
       let title = this._t("statusNormal");
@@ -2142,6 +2356,7 @@
 
       const lowBatteries = this._config.low_battery_sensors || {};
       const lowBatteryEntries = Object.entries(lowBatteries);
+      const filteredHistory = this._getFilteredHistory(history);
 
       return `
         <!-- Main Hero Banner -->
@@ -2375,25 +2590,84 @@
 
         <!-- Event History -->
         <div class="card">
-          <div class="card-header">
-            <h3 class="card-title">📜 ${this._t("eventHistoryTitle")}</h3>
+          <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <h3 class="card-title" style="margin: 0;">📜 ${this._t("eventHistoryTitle")}</h3>
+              ${history && history.length > 0 ? `
+                <span class="badge badge-generic" style="font-size: 11px;">
+                  ${this._t("historyCountBadge", { filtered: filteredHistory.length, total: history.length })}
+                </span>
+              ` : ''}
+            </div>
+
+            <!-- Filter Controls -->
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <label for="history-filter-type" style="font-size: 12px; font-weight: 600; color: var(--secondary-text-color, #757575);">
+                  ${this._t("historyFilterType")}
+                </label>
+                <select id="history-filter-type" class="form-control" style="font-size: 12px; padding: 4px 8px; width: auto; min-width: 170px;">
+                  <option value="all" ${this._historyTypeFilter === 'all' ? 'selected' : ''}>${this._t("historyTypeAll")}</option>
+                  <option value="alarms" ${this._historyTypeFilter === 'alarms' ? 'selected' : ''}>${this._t("historyTypeAlarms")}</option>
+                  <option value="silenced" ${this._historyTypeFilter === 'silenced' ? 'selected' : ''}>${this._t("historyTypeSilenced")}</option>
+                  <option value="reset" ${this._historyTypeFilter === 'reset' ? 'selected' : ''}>${this._t("historyTypeReset")}</option>
+                  <option value="self_tests" ${this._historyTypeFilter === 'self_tests' ? 'selected' : ''}>${this._t("historyTypeSelfTestAll")}</option>
+                  <option value="self_test_failed" ${this._historyTypeFilter === 'self_test_failed' ? 'selected' : ''}>${this._t("historyTypeSelfTestFailed")}</option>
+                  <option value="self_test_success" ${this._historyTypeFilter === 'self_test_success' ? 'selected' : ''}>${this._t("historyTypeSelfTestSuccess")}</option>
+                  <option value="drills" ${this._historyTypeFilter === 'drills' ? 'selected' : ''}>${this._t("historyTypeDrills")}</option>
+                  <option value="test_mode" ${this._historyTypeFilter === 'test_mode' ? 'selected' : ''}>${this._t("historyTypeTestMode")}</option>
+                  <option value="battery_low" ${this._historyTypeFilter === 'battery_low' ? 'selected' : ''}>${this._t("historyTypeBattery")}</option>
+                  <option value="offline_online" ${this._historyTypeFilter === 'offline_online' ? 'selected' : ''}>${this._t("historyTypeOffline")}</option>
+                  <option value="ignored" ${this._historyTypeFilter === 'ignored' ? 'selected' : ''}>${this._t("historyTypeIgnored")}</option>
+                </select>
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <label for="history-filter-time" style="font-size: 12px; font-weight: 600; color: var(--secondary-text-color, #757575);">
+                  ${this._t("historyFilterTime")}
+                </label>
+                <select id="history-filter-time" class="form-control" style="font-size: 12px; padding: 4px 8px; width: auto; min-width: 140px;">
+                  <option value="24h" ${this._historyTimeFilter === '24h' ? 'selected' : ''}>${this._t("historyTime24h")}</option>
+                  <option value="1h" ${this._historyTimeFilter === '1h' ? 'selected' : ''}>${this._t("historyTime1h")}</option>
+                  <option value="6h" ${this._historyTimeFilter === '6h' ? 'selected' : ''}>${this._t("historyTime6h")}</option>
+                  <option value="12h" ${this._historyTimeFilter === '12h' ? 'selected' : ''}>${this._t("historyTime12h")}</option>
+                  <option value="3d" ${this._historyTimeFilter === '3d' ? 'selected' : ''}>${this._t("historyTime3d")}</option>
+                  <option value="all" ${this._historyTimeFilter === 'all' ? 'selected' : ''}>${this._t("historyTimeAll")}</option>
+                </select>
+              </div>
+            </div>
           </div>
-          ${history.length === 0 ? `
+
+          ${!history || history.length === 0 ? `
             <p style="color: var(--secondary-text-color, #757575); margin: 0;">${this._t("noEvents")}</p>
+          ` : filteredHistory.length === 0 ? `
+            <div style="text-align: center; padding: 24px 12px; background: rgba(127,127,127,0.04); border-radius: 8px; border: 1px dashed var(--ha-card-border-color, rgba(127,127,127,0.2));">
+              <p style="color: var(--secondary-text-color, #757575); margin: 0 0 10px 0; font-size: 14px;">
+                ${this._t("historyNoMatchingEvents")}
+              </p>
+              <button class="btn-sm" id="btn-history-show-all" style="cursor: pointer;">
+                📜 ${this._t("historyShowAllEvents")}
+              </button>
+            </div>
           ` : `
-            <ul class="timeline">
-              ${history.slice().reverse().slice(0, 10).map(evt => `
-                <li class="timeline-item">
-                  <div class="timeline-dot">
-                    ${evt.event === 'sensor_triggered' ? '🚨' : evt.event === 'silenced' ? '🔕' : evt.event === 'reset' ? '✅' : '🧪'}
-                  </div>
-                  <div class="timeline-content">
-                    <p class="timeline-title">${evt.details || evt.name || evt.event}</p>
-                    <p class="timeline-time">${new Date(evt.timestamp).toLocaleString()}</p>
-                  </div>
-                </li>
-              `).join('')}
-            </ul>
+            <div class="history-container" style="max-height: 520px; overflow-y: auto; padding-right: 4px;">
+              <ul class="timeline">
+                ${filteredHistory.map(evt => `
+                  <li class="timeline-item">
+                    <div class="timeline-dot">
+                      ${this._getHistoryEventIcon(evt)}
+                    </div>
+                    <div class="timeline-content">
+                      <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                        <p class="timeline-title">${evt.details || evt.name || evt.event}</p>
+                        ${this._getHistoryEventBadge(evt)}
+                      </div>
+                      <p class="timeline-time">${this._formatEventTime(evt.timestamp)}</p>
+                    </div>
+                  </li>
+                `).join('')}
+              </ul>
+            </div>
           `}
         </div>
       `;
@@ -2954,6 +3228,17 @@
               ${this._t("lblBatteryAlerts")}
             </label>
           </div>
+          <div class="form-group">
+            <label class="form-label">${this._t("lblHistoryDefaultTime")}</label>
+            <select class="form-control" id="setting-history-default-time">
+              <option value="24h" ${(settings.history_default_time || '24h') === '24h' ? 'selected' : ''}>${this._t("historyTime24h")}</option>
+              <option value="1h" ${settings.history_default_time === '1h' ? 'selected' : ''}>${this._t("historyTime1h")}</option>
+              <option value="6h" ${settings.history_default_time === '6h' ? 'selected' : ''}>${this._t("historyTime6h")}</option>
+              <option value="12h" ${settings.history_default_time === '12h' ? 'selected' : ''}>${this._t("historyTime12h")}</option>
+              <option value="3d" ${settings.history_default_time === '3d' ? 'selected' : ''}>${this._t("historyTime3d")}</option>
+              <option value="all" ${settings.history_default_time === 'all' ? 'selected' : ''}>${this._t("historyTimeAll")}</option>
+            </select>
+          </div>
 
           <hr style="border: none; border-top: 1px solid var(--divider-color, rgba(127,127,127,0.2)); margin: 20px 0;">
           <h4 style="margin: 0 0 6px 0; font-size: 15px; font-weight: 700; color: #00796b;">
@@ -3495,6 +3780,42 @@
       if (btnGotoSensors) {
         btnGotoSensors.addEventListener('click', () => {
           this._activeTab = 'sensors';
+          this._render();
+        });
+      }
+
+      // History Filter Listeners
+      const filterHistType = root.querySelector('#history-filter-type');
+      if (filterHistType) {
+        filterHistType.addEventListener('change', (e) => {
+          this._historyTypeFilter = e.target.value;
+          try {
+            localStorage.setItem("sm_history_type_filter", this._historyTypeFilter);
+          } catch (_) {}
+          this._render();
+        });
+      }
+
+      const filterHistTime = root.querySelector('#history-filter-time');
+      if (filterHistTime) {
+        filterHistTime.addEventListener('change', (e) => {
+          this._historyTimeFilter = e.target.value;
+          try {
+            localStorage.setItem("sm_history_time_filter", this._historyTimeFilter);
+          } catch (_) {}
+          this._render();
+        });
+      }
+
+      const btnHistShowAll = root.querySelector('#btn-history-show-all');
+      if (btnHistShowAll) {
+        btnHistShowAll.addEventListener('click', () => {
+          this._historyTypeFilter = 'all';
+          this._historyTimeFilter = 'all';
+          try {
+            localStorage.setItem("sm_history_type_filter", 'all');
+            localStorage.setItem("sm_history_time_filter", 'all');
+          } catch (_) {}
           this._render();
         });
       }
@@ -4087,6 +4408,7 @@
           const autoSelfTestTime = (root.querySelector('#setting-auto-self-test-time')?.value || '11:00').trim();
           const autoSelfTestStep = parseInt(root.querySelector('#setting-auto-self-test-step')?.value, 10) || 60;
           const autoSelfTestNotify = root.querySelector('#setting-auto-self-test-notify')?.checked !== false;
+          const histDefaultTime = (root.querySelector('#setting-history-default-time')?.value) || '24h';
 
           const updatedSettings = {
             test_mode_timeout: testMin * 60,
@@ -4099,6 +4421,7 @@
             auto_self_test_time: autoSelfTestTime,
             auto_self_test_step_seconds: autoSelfTestStep,
             auto_self_test_notify: autoSelfTestNotify,
+            history_default_time: histDefaultTime,
           };
 
           try {
@@ -4107,6 +4430,10 @@
               settings: updatedSettings,
             });
             this._config.settings = Object.assign({}, this._config.settings, updatedSettings);
+            this._historyTimeFilter = histDefaultTime;
+            try {
+              localStorage.setItem("sm_history_time_filter", histDefaultTime);
+            } catch (_) {}
             btnSaveSettings.innerHTML = '✅ Gespeichert';
             btnSaveSettings.classList.add('test-success');
             setTimeout(() => {

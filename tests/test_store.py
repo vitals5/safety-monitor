@@ -37,6 +37,8 @@ class TestSafetyStorage(unittest.IsolatedAsyncioTestCase):
         settings = self.storage.async_get_settings()
         self.assertEqual(settings.get("test_mode"), False)
         self.assertEqual(settings.get("test_mode_timeout"), 900)
+        self.assertEqual(settings.get("history_default_time"), "24h")
+        self.assertEqual(settings.get("history_default_type"), "all")
 
     async def test_sensor_crud(self) -> None:
         """Test creating, reading, updating and deleting sensors."""
@@ -168,6 +170,10 @@ class TestSafetyStorage(unittest.IsolatedAsyncioTestCase):
                 "event": "sensor_triggered",
                 "details": f"Test trigger {i}",
             })
+
+        history = self.storage.async_get_history()
+        self.assertEqual(len(history), 100)
+        self.assertEqual(history[-1]["details"], "Test trigger 119")
 
     async def test_sensor_buttons_and_result_entity(self) -> None:
         """Test saving and retrieving sensor button entities and test_result_entity."""

@@ -84,7 +84,7 @@ async def ws_get_config(
             "zones": store.async_get_zones(),
             "actions": store.async_get_actions(),
             "settings": store.async_get_settings(),
-            "history": store.async_get_history(limit=50),
+            "history": store.async_get_history(limit=100),
             "state": coordinator.state if coordinator else "normal",
             "active_triggers": coordinator.active_triggers if coordinator else {},
             "offline_sensors": coordinator.offline_sensors if coordinator else [],

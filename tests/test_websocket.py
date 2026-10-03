@@ -72,7 +72,11 @@ class TestWebSocketAPI(unittest.IsolatedAsyncioTestCase):
         }
 
     async def test_ws_get_config(self) -> None:
-        """Test fetching full config."""
+        """Test fetching full config including history up to 100 items."""
+        # Add 75 history items
+        for i in range(75):
+            await self.storage.async_add_history({"event": "sensor_triggered", "details": f"Evt {i}"})
+
         msg = {"id": 1, "type": "safety_monitor/config/get"}
         await ws_get_config(self.hass, self.connection, msg)
         self.connection.send_result.assert_called_once()
@@ -81,6 +85,11 @@ class TestWebSocketAPI(unittest.IsolatedAsyncioTestCase):
         self.assertIn("sensors", args[1])
         self.assertIn("zones", args[1])
         self.assertIn("actions", args[1])
+        self.assertIn("history", args[1])
+        # Verify limit is at least 75 (previously was capped at 50)
+        self.assertEqual(len(args[1]["history"]), 75)
+        self.assertEqual(args[1]["settings"].get("history_default_time"), "24h")
+        self.assertEqual(args[1]["settings"].get("history_default_type"), "all")
 
     async def test_ws_update_settings(self) -> None:
         """Test updating settings."""

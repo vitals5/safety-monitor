@@ -163,6 +163,8 @@ def _get_default_settings() -> dict[str, Any]:
         "auto_self_test_step_seconds": DEFAULT_AUTO_SELF_TEST_STEP_SECONDS,
         "auto_self_test_notify": True,
         "last_auto_self_test_date": "",
+        "history_default_time": "24h",
+        "history_default_type": "all",
     }
 
 
@@ -352,7 +354,7 @@ class SafetyStorage:
         return self.data["settings"]
 
     # History
-    def async_get_history(self, limit: int = 50) -> list[dict[str, Any]]:
+    def async_get_history(self, limit: int = 100) -> list[dict[str, Any]]:
         """Get recent history entries."""
         return self.data.get("history", [])[-limit:]
 
