@@ -133,6 +133,7 @@ class ActionEngine:
         phase: str,
         context: dict[str, Any],
         sensor_config: dict[str, Any] | None = None,
+        allow_delayed: bool = True,
     ) -> list[str]:
         """Execute all configured actions for a given phase and hazard type."""
         settings = self.store.async_get_settings()
@@ -188,6 +189,8 @@ class ActionEngine:
             if not action.get("enabled", True):
                 continue
             if action.get("phase") != phase:
+                continue
+            if not allow_delayed and int(action.get("delay", 0) or 0) > 0:
                 continue
 
             trigger_types = action.get("trigger_types", [])

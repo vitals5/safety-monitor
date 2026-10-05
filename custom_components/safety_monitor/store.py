@@ -44,6 +44,7 @@ def _get_default_actions() -> list[dict[str, Any]]:
             "trigger_types": [TYPE_MOISTURE],
             "phase": PHASE_CUTOFF,
             "enabled": True,
+            "delay": 0,
             "service": "valve.close_valve",
             "target": {"entity_id": []},
             "data": {},
@@ -54,6 +55,7 @@ def _get_default_actions() -> list[dict[str, Any]]:
             "trigger_types": [TYPE_SMOKE, TYPE_GAS, TYPE_CO],
             "phase": PHASE_CUTOFF,
             "enabled": True,
+            "delay": 0,
             "service": "fan.turn_off",
             "target": {"entity_id": []},
             "data": {},
@@ -64,6 +66,7 @@ def _get_default_actions() -> list[dict[str, Any]]:
             "trigger_types": [TYPE_SMOKE, TYPE_GAS, TYPE_CO],
             "phase": PHASE_CUTOFF,
             "enabled": True,
+            "delay": 0,
             "service": "cover.open_cover",
             "target": {"entity_id": []},
             "data": {},
@@ -74,6 +77,7 @@ def _get_default_actions() -> list[dict[str, Any]]:
             "trigger_types": [TYPE_SMOKE, TYPE_GAS, TYPE_CO, TYPE_HEAT, TYPE_MOISTURE],
             "phase": PHASE_NOTIFICATION,
             "enabled": True,
+            "delay": 0,
             "service": "notify.notify",
             "target": {},
             "data": {
@@ -99,6 +103,7 @@ def _get_default_actions() -> list[dict[str, Any]]:
             "trigger_types": [TYPE_SMOKE, TYPE_GAS, TYPE_CO, TYPE_HEAT],
             "phase": PHASE_ACOUSTIC_OPTICAL,
             "enabled": True,
+            "delay": 0,
             "service": "siren.turn_on",
             "target": {"entity_id": []},
             "data": {},
@@ -109,6 +114,7 @@ def _get_default_actions() -> list[dict[str, Any]]:
             "trigger_types": [TYPE_SMOKE, TYPE_GAS, TYPE_CO],
             "phase": PHASE_ACOUSTIC_OPTICAL,
             "enabled": True,
+            "delay": 0,
             "service": "light.turn_on",
             "target": {"entity_id": []},
             "data": {
@@ -321,6 +327,7 @@ class SafetyStorage:
             "service": action_data.get("service", ""),
             "target": dict(action_data.get("target", {})),
             "data": dict(action_data.get("data", {})),
+            "delay": int(action_data.get("delay", 0) or 0),
             "repeat_interval": int(action_data.get("repeat_interval", 0) or 0),
         }
 

@@ -578,6 +578,47 @@ class TestActionEngine(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(bool_call)
         self.assertEqual(bool_call[1]["target"]["entity_id"], "input_boolean.alarm_active")
 
+    async def test_execute_phase_skips_delayed_actions_when_disallowed(self) -> None:
+        """Test that async_execute_phase skips actions with delay > 0 when allow_delayed is False."""
+        await self.storage.async_save_action({
+            "id": "instant_action",
+            "name": "Instant Action",
+            "phase": PHASE_NOTIFICATION,
+            "service": "notify.notify",
+            "delay": 0,
+            "enabled": True,
+            "trigger_types": [TYPE_SMOKE],
+        })
+        await self.storage.async_save_action({
+            "id": "delayed_action",
+            "name": "Delayed Action",
+            "phase": PHASE_NOTIFICATION,
+            "service": "notify.notify",
+            "delay": 60,
+            "enabled": True,
+            "trigger_types": [TYPE_SMOKE],
+        })
+
+        context = {
+            "sensor_name": "Test Smoke",
+            "hazard_type": TYPE_SMOKE,
+            "zone": "kitchen",
+        }
+
+        # With allow_delayed=False, only instant_action should execute
+        executed = await self.engine.async_execute_phase(
+            PHASE_NOTIFICATION, context, allow_delayed=False
+        )
+        self.assertIn("instant_action", executed)
+        self.assertNotIn("delayed_action", executed)
+
+        # With allow_delayed=True, both should execute
+        executed_all = await self.engine.async_execute_phase(
+            PHASE_NOTIFICATION, context, allow_delayed=True
+        )
+        self.assertIn("instant_action", executed_all)
+        self.assertIn("delayed_action", executed_all)
+
 
 if __name__ == "__main__":
     unittest.main()

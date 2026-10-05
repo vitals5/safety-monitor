@@ -146,6 +146,12 @@
         "presetSiren": "🔊 Sirene Lautstärke",
         "presetAllClear": "✅ Entwarnungs-Push",
         "presetScript": "📜 Skript-Variablen",
+        "presetSipCall": "📞 SIP-Anruf",
+        "presetFritzCall": "☎️ Fritz!Box Anruf",
+        "lblActionDelay": "Eskalations-Verzögerung (Delay):",
+        "actionDelayHelp": "Verzögert die erste Ausführung dieser Aktion um X Sekunden nach Alarmauslösung (z. B. für gestaffelte Telefonanrufe/Eskalation). 0 = sofort.",
+        "badgeInstant": "Sofort",
+        "badgeEscalation": "Eskalation",
         "actionRepeat": "Wiederholung während Alarm (Wiederholungsschleife):",
         "actionRepeatHelp": "Wiederholt die Aktion während eines aktiven Alarms alle X Sekunden (z. B. für Sirenen oder Push-Updates). 0 = nur einmalig.",
         "validJson": "✅ Gültiges JSON",
@@ -362,6 +368,12 @@
         "presetSiren": "🔊 Siren Volume",
         "presetAllClear": "✅ All-Clear Push",
         "presetScript": "📜 Script Variables",
+        "presetSipCall": "📞 SIP Call",
+        "presetFritzCall": "☎️ Fritz!Box Call",
+        "lblActionDelay": "Escalation Delay:",
+        "actionDelayHelp": "Delays the first execution of this action by X seconds after alarm trigger (e.g. for staged phone calls/escalation). 0 = instant.",
+        "badgeInstant": "Instant",
+        "badgeEscalation": "Escalation",
         "actionRepeat": "Repetition Loop during Alarm (seconds, 0 = once):",
         "actionRepeatHelp": "Repeats this action every X seconds while alarm is triggered (e.g. for sirens or push updates). 0 = execute once only.",
         "validJson": "✅ Valid JSON",
@@ -578,6 +590,12 @@
         "presetSiren": "🔊 Volume de la sirène",
         "presetAllClear": "✅ Notification de fin d'alerte",
         "presetScript": "📜 Variables de script",
+        "presetSipCall": "📞 Appel SIP",
+        "presetFritzCall": "☎️ Appel Fritz!Box",
+        "lblActionDelay": "Délai d'escalade :",
+        "actionDelayHelp": "Retarde la première exécution de cette action de X secondes après le déclenchement de l'alarme (p. ex. pour les appels échelonnés). 0 = immédiat.",
+        "badgeInstant": "Immédiat",
+        "badgeEscalation": "Escalade",
         "actionRepeat": "Boucle de répétition pendant l'alarme (secondes, 0 = une fois) :",
         "actionRepeatHelp": "Répète cette action toutes les X secondes tant que l'alarme est active. 0 = exécution unique.",
         "validJson": "✅ JSON valide",
@@ -794,6 +812,12 @@
         "presetSiren": "🔊 Volumen de sirena",
         "presetAllClear": "✅ Push de fin de alarma",
         "presetScript": "📜 Variables de script",
+        "presetSipCall": "📞 Llamada SIP",
+        "presetFritzCall": "☎️ Llamada Fritz!Box",
+        "lblActionDelay": "Retardo de escalada:",
+        "actionDelayHelp": "Retrasa la primera ejecución de esta acción en X segundos tras el disparo de alarma (p. ej. para llamadas escalonadas). 0 = inmediato.",
+        "badgeInstant": "Inmediato",
+        "badgeEscalation": "Escalada",
         "actionRepeat": "Bucle de repetición durante la alarma (segundos, 0 = una vez):",
         "actionRepeatHelp": "Repite esta acción cada X segundos mientras la alarma está activa. 0 = ejecutar una sola vez.",
         "validJson": "✅ JSON válido",
@@ -1010,6 +1034,12 @@
         "presetSiren": "🔊 Volume sirena",
         "presetAllClear": "✅ Notifica di cessato allarme",
         "presetScript": "📜 Variabili script",
+        "presetSipCall": "📞 Chiamata SIP",
+        "presetFritzCall": "☎️ Chiamata Fritz!Box",
+        "lblActionDelay": "Ritardo di escalation:",
+        "actionDelayHelp": "Ritarda la prima esecuzione di questa azione di X secondi dopo l'allarme (es. per chiamate telefoniche scaglionate). 0 = immediato.",
+        "badgeInstant": "Immediato",
+        "badgeEscalation": "Escalation",
         "actionRepeat": "Ripetizione ciclica durante allarme (secondi, 0 = una volta):",
         "actionRepeatHelp": "Ripete questa azione ogni X secondi finché l'allarme è attivo. 0 = esegui una sola volta.",
         "validJson": "✅ JSON valido",
@@ -1226,6 +1256,12 @@
         "presetSiren": "🔊 Sirene volume",
         "presetAllClear": "✅ Alles-veilig melding",
         "presetScript": "📜 Scriptvariabelen",
+        "presetSipCall": "📞 SIP-oproep",
+        "presetFritzCall": "☎️ Fritz!Box oproep",
+        "lblActionDelay": "Escalatievertraging:",
+        "actionDelayHelp": "Vertraagt de eerste uitvoering van deze actie met X seconden na het alarm (bijv. voor getrapte telefoongesprekken). 0 = direct.",
+        "badgeInstant": "Direct",
+        "badgeEscalation": "Escalatie",
         "actionRepeat": "Herhaling tijdens alarm (seconden, 0 = eenmalig):",
         "actionRepeatHelp": "Herhaalt deze actie elke X seconden zolang alarm actief is. 0 = eenmalig uitvoeren.",
         "validJson": "✅ Geldige JSON",
@@ -1442,6 +1478,12 @@
         "presetSiren": "🔊 Głośność syreny",
         "presetAllClear": "✅ Push o odwołaniu alarmu",
         "presetScript": "📜 Zmienne skryptu",
+        "presetSipCall": "📞 Połączenie SIP",
+        "presetFritzCall": "☎️ Połączenie Fritz!Box",
+        "lblActionDelay": "Opóźnienie eskalacji:",
+        "actionDelayHelp": "Opóźnia pierwsze wykonanie tej akcji o X sekund po wyzwoleniu alarmu (np. dla stopniowanych połączeń telefonicznych). 0 = natychmiast.",
+        "badgeInstant": "Natychmiast",
+        "badgeEscalation": "Eskalacja",
         "actionRepeat": "Pętla powtarzania w trakcie alarmu (sekundy, 0 = jednorazowo):",
         "actionRepeatHelp": "Powtarza tę akcję co X sekund tak długo, jak trwa alarm. 0 = jednokrotne wykonanie.",
         "validJson": "✅ Prawidłowy JSON",
@@ -1658,6 +1700,12 @@
         "presetSiren": "🔊 Volume da sirene",
         "presetAllClear": "✅ Push de fim de perigo",
         "presetScript": "📜 Variáveis de script",
+        "presetSipCall": "📞 Chamada SIP",
+        "presetFritzCall": "☎️ Chamada Fritz!Box",
+        "lblActionDelay": "Atraso de escalonamento:",
+        "actionDelayHelp": "Atrasa a primeira execução desta ação em X segundos após o alarme (por ex. para chamadas faseadas). 0 = imediato.",
+        "badgeInstant": "Imediato",
+        "badgeEscalation": "Escalonamento",
         "actionRepeat": "Repetição durante alarme (segundos, 0 = uma vez):",
         "actionRepeatHelp": "Repete esta ação a cada X segundos enquanto o alarme estiver ativo. 0 = executa uma vez.",
         "validJson": "✅ JSON válido",
@@ -1874,6 +1922,12 @@
         "presetSiren": "🔊 Громкость сирены",
         "presetAllClear": "✅ Уведомление об отбое",
         "presetScript": "📜 Переменные скрипта",
+        "presetSipCall": "📞 SIP-звонок",
+        "presetFritzCall": "☎️ Звонок Fritz!Box",
+        "lblActionDelay": "Задержка эскалации:",
+        "actionDelayHelp": "Задерживает первое выполнение этого действия на X секунд после тревоги (например, для поэтапных звонков). 0 = мгновенно.",
+        "badgeInstant": "Мгновенно",
+        "badgeEscalation": "Эскалация",
         "actionRepeat": "Повторение во время тревоги (секунд, 0 = однократно):",
         "actionRepeatHelp": "Повторяет действие каждые X секунд, пока длится тревога. 0 = однократный запуск.",
         "validJson": "✅ Корректный JSON",
@@ -2090,6 +2144,12 @@
         "presetSiren": "🔊 Sirenvolym",
         "presetAllClear": "✅ Faran-över-avisering",
         "presetScript": "📜 Skriptvariabler",
+        "presetSipCall": "📞 SIP-samtal",
+        "presetFritzCall": "☎️ Fritz!Box-samtal",
+        "lblActionDelay": "Eskaleringsfördröjning:",
+        "actionDelayHelp": "Fördröjer det första utförandet av denna åtgärd med X sekunder efter larm (t.ex. för stegvisa telefonsamtal). 0 = omedelbart.",
+        "badgeInstant": "Omedelbart",
+        "badgeEscalation": "Eskalering",
         "actionRepeat": "Repetitionsslinga under larm (sekunder, 0 = en gång):",
         "actionRepeatHelp": "Upprepar denna åtgärd var X:e sekund så länge larmet är aktivt. 0 = kör endast en gång.",
         "validJson": "✅ Giltig JSON",
@@ -2262,6 +2322,13 @@
       { service: "camera.snapshot", label: "Kamera-Schnappschuss erstellen", icon: "📷", recommended: true },
       { service: "camera.record", label: "Kamera-Aufnahme starten", icon: "🎥" },
     ],
+    sipclient: [
+      { service: "sipclient.call", label: "SIP-Anruf auslösen", icon: "📞", recommended: true },
+      { service: "sipclient.hangup", label: "SIP-Anruf beenden", icon: "🔴" },
+    ],
+    fritzbox: [
+      { service: "fritzbox.call", label: "Fritz!Box Telefonanruf starten", icon: "☎️", recommended: true },
+    ],
     homeassistant: [
       { service: "homeassistant.turn_off", label: "Gerät ausschalten", icon: "🔌", recommended: true },
       { service: "homeassistant.turn_on", label: "Gerät einschalten", icon: "⚡" },
@@ -2286,6 +2353,14 @@
           }
         }
       }
+    }, null, 2),
+    sip_call: JSON.stringify({
+      target: "sip:01701234567@fritz.box",
+      message: "🚨 Notfall-Alarm! {{ hazard_type }} erkannt durch {{ sensor_name }} in Zone {{ zone }}!"
+    }, null, 2),
+    fritz_call: JSON.stringify({
+      phone_number: "**610",
+      message: "🚨 Notfall-Alarm! {{ hazard_type }} erkannt durch {{ sensor_name }} in Zone {{ zone }}!"
     }, null, 2),
     red_light: JSON.stringify({
       rgb_color: [255, 0, 0],
@@ -5077,17 +5152,29 @@
     }
 
     _renderActionsTab(actions) {
-      const cutoffActions = actions.filter(a => a.phase === 'cutoff');
-      const notifActions = actions.filter(a => a.phase === 'notification');
-      const acousticActions = actions.filter(a => a.phase === 'acoustic_optical');
-      const restoreActions = actions.filter(a => a.phase === 'restore');
-      const systemActions = actions.filter(a => a.phase === 'system');
+      const sortActions = (list) => {
+        return [...list].sort((a, b) => {
+          const delayA = parseInt(a.delay, 10) || 0;
+          const delayB = parseInt(b.delay, 10) || 0;
+          if (delayA !== delayB) return delayA - delayB;
+          return (a.name || '').localeCompare(b.name || '');
+        });
+      };
+
+      const cutoffActions = sortActions(actions.filter(a => a.phase === 'cutoff'));
+      const notifActions = sortActions(actions.filter(a => a.phase === 'notification'));
+      const acousticActions = sortActions(actions.filter(a => a.phase === 'acoustic_optical'));
+      const restoreActions = sortActions(actions.filter(a => a.phase === 'restore'));
+      const systemActions = sortActions(actions.filter(a => a.phase === 'system'));
 
       const renderActionList = (list) => {
         if (list.length === 0) return '<p style="color: var(--secondary-text-color, #757575); font-size: 13px;">Keine Aktionen in dieser Phase konfiguriert.</p>';
         return list.map(a => {
+          const delayBadge = (a.delay && a.delay > 0)
+            ? `<span class="badge" style="background: rgba(255, 152, 0, 0.2); color: #ff9800; border: 1px solid rgba(255, 152, 0, 0.4); padding: 2px 7px; border-radius: 12px; font-size: 11px; font-weight: bold; margin-left: 6px;" title="Verzögerung um ${a.delay} Sekunden (Eskalation)">⏱️ +${a.delay}s (${this._t("badgeEscalation")})</span>`
+            : (a.phase !== 'system' && a.phase !== 'restore' ? `<span class="badge" style="background: rgba(76, 175, 80, 0.15); color: #4caf50; border: 1px solid rgba(76, 175, 80, 0.3); padding: 2px 7px; border-radius: 12px; font-size: 11px; font-weight: bold; margin-left: 6px;">⚡ ${this._t("badgeInstant")}</span>` : '');
           const repeatBadge = (a.repeat_interval && a.repeat_interval > 0)
-            ? `<span class="repeat-badge" title="Wiederholung alle ${a.repeat_interval} Sekunden während Alarm">🔄 alle ${a.repeat_interval}s</span>`
+            ? `<span class="repeat-badge" style="background: rgba(33, 150, 243, 0.15); color: #2196f3; border: 1px solid rgba(33, 150, 243, 0.3); padding: 2px 7px; border-radius: 12px; font-size: 11px; font-weight: bold; margin-left: 6px;" title="Wiederholung alle ${a.repeat_interval} Sekunden während Alarm">🔁 alle ${a.repeat_interval}s</span>`
             : '';
           const targetEntities = a.target && a.target.entity_id
             ? (Array.isArray(a.target.entity_id) ? a.target.entity_id.filter(Boolean) : [a.target.entity_id].filter(Boolean))
@@ -5095,14 +5182,14 @@
           let targetDisplay = '';
           if (targetEntities.length > 0) {
             targetDisplay = ` · Ziel: <code>${targetEntities.join(', ')}</code>`;
-          } else if (a.service && !a.service.startsWith('notify.')) {
+          } else if (a.service && !a.service.startsWith('notify.') && !a.service.startsWith('sipclient.') && !a.service.startsWith('fritzbox.')) {
             targetDisplay = ` · Ziel: <span style="color: var(--warning-color, #ff9800); font-size: 11px;">⚠️ Nicht festgelegt</span>`;
           }
 
           return `
             <div class="action-item-row">
               <div class="action-item-info">
-                <strong>${a.name}</strong> <span style="font-size: 12px; color: var(--secondary-text-color, #757575);">(${a.service})</span>${repeatBadge}<br>
+                <strong>${a.name}</strong> <span style="font-size: 12px; color: var(--secondary-text-color, #757575);">(${a.service})</span>${delayBadge}${repeatBadge}<br>
                 <small style="color: var(--secondary-text-color, #757575); line-height: 1.4; display: inline-block; margin-top: 2px;">
                   ${a.phase === 'system' ? 'System-Ereignisse' : 'Gefahrentypen'}: ${(a.trigger_types && a.trigger_types.length > 0) ? a.trigger_types.map(t => `${this._getTypeIcon(t)} ${this._getTypeName(t)}`).join(', ') : 'Alle'}
                   ${targetDisplay}
@@ -5583,6 +5670,34 @@
                 </small>
               </div>
 
+              <!-- Escalation Delay -->
+              <div class="form-group">
+                <label class="form-label">${this._t("lblActionDelay")}</label>
+                <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 6px;">
+                  <input
+                    type="number"
+                    class="form-control"
+                    id="modal-act-delay"
+                    value="${a.delay || 0}"
+                    min="0"
+                    step="5"
+                    style="max-width: 140px;"
+                  >
+                  <span style="font-size: 13px; color: var(--secondary-text-color, #757575);">Sekunden (0 = sofort)</span>
+                </div>
+                <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px;">
+                  <button type="button" class="btn-data-preset act-delay-preset" data-delay="0">0s (Sofort)</button>
+                  <button type="button" class="btn-data-preset act-delay-preset" data-delay="30">+30s</button>
+                  <button type="button" class="btn-data-preset act-delay-preset" data-delay="60">+60s (1 Min)</button>
+                  <button type="button" class="btn-data-preset act-delay-preset" data-delay="120">+120s (2 Min)</button>
+                  <button type="button" class="btn-data-preset act-delay-preset" data-delay="180">+180s (3 Min)</button>
+                  <button type="button" class="btn-data-preset act-delay-preset" data-delay="300">+300s (5 Min)</button>
+                </div>
+                <small style="color: var(--secondary-text-color, #757575); font-size: 11px; display: block;">
+                  ${this._t("actionDelayHelp")}
+                </small>
+              </div>
+
               <!-- Repeat Loop -->
               <div class="form-group">
                 <label class="form-label">${this._t("actionRepeat")}</label>
@@ -5700,6 +5815,8 @@
                     <button type="button" class="btn-data-preset data-preset-btn" data-preset="empty">${this._t("presetEmpty")}</button>
                     <button type="button" class="btn-data-preset data-preset-btn" data-preset="notify">${this._t("presetNotify")}</button>
                     <button type="button" class="btn-data-preset data-preset-btn" data-preset="critical">${this._t("presetCritical")}</button>
+                    <button type="button" class="btn-data-preset data-preset-btn" data-preset="sip_call">${this._t("presetSipCall")}</button>
+                    <button type="button" class="btn-data-preset data-preset-btn" data-preset="fritz_call">${this._t("presetFritzCall")}</button>
                     <button type="button" class="btn-data-preset data-preset-btn" data-preset="red_light">${this._t("presetRedLight")}</button>
                     <button type="button" class="btn-data-preset data-preset-btn" data-preset="siren">${this._t("presetSiren")}</button>
                     <button type="button" class="btn-data-preset data-preset-btn" data-preset="all_clear">${this._t("presetAllClear")}</button>
@@ -6824,6 +6941,24 @@
             if (val !== undefined) {
               actDataTextarea.value = val;
               validateJson();
+              if (key === 'sip_call' && (!actServiceInput.value || actServiceInput.value === 'notify.notify')) {
+                actServiceInput.value = 'sipclient.call';
+                updateServicesDropdown('sipclient', 'sipclient.call');
+              } else if (key === 'fritz_call' && (!actServiceInput.value || actServiceInput.value === 'notify.notify')) {
+                actServiceInput.value = 'fritzbox.call';
+                updateServicesDropdown('fritzbox', 'fritzbox.call');
+              }
+            }
+          });
+        });
+
+        // Delay Presets Buttons
+        root.querySelectorAll('.act-delay-preset').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            const sec = e.currentTarget.dataset.delay;
+            const delayInput = root.querySelector('#modal-act-delay');
+            if (delayInput && sec !== undefined) {
+              delayInput.value = sec;
             }
           });
         });
@@ -7043,6 +7178,7 @@
           const phase = root.querySelector('#modal-act-phase').value;
           const service = root.querySelector('#modal-act-service').value.trim();
           const targetRaw = root.querySelector('#modal-act-target').value.trim();
+          const delaySec = parseInt(root.querySelector('#modal-act-delay')?.value, 10) || 0;
           const repeatInterval = parseInt(root.querySelector('#modal-act-repeat')?.value, 10) || 0;
           let dataObj = {};
           try {
@@ -7092,6 +7228,7 @@
                 service: service,
                 target: target,
                 data: dataObj,
+                delay: delaySec,
                 repeat_interval: repeatInterval,
                 enabled: true,
                 trigger_types: triggerTypes,
@@ -7142,6 +7279,7 @@
           const phase = root.querySelector('#modal-act-phase').value;
           const service = root.querySelector('#modal-act-service').value.trim();
           const targetRaw = root.querySelector('#modal-act-target').value.trim();
+          const delaySec = parseInt(root.querySelector('#modal-act-delay')?.value, 10) || 0;
           const repeatInterval = parseInt(root.querySelector('#modal-act-repeat')?.value, 10) || 0;
           const feedbackEl = root.querySelector('#modal-test-action-feedback');
           if (feedbackEl) {
@@ -7202,6 +7340,7 @@
                 service: service,
                 target: target,
                 data: dataObj,
+                delay: delaySec,
                 repeat_interval: repeatInterval,
                 enabled: true,
                 trigger_types: triggerTypes,

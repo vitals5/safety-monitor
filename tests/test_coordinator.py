@@ -16,6 +16,8 @@ from custom_components.safety_monitor.const import (
     EVENT_SAFETY_SENSOR_OFFLINE,
     EVENT_SAFETY_SENSOR_ONLINE,
     PHASE_ACOUSTIC_OPTICAL,
+    PHASE_CUTOFF,
+    PHASE_NOTIFICATION,
     PHASE_RESTORE,
     PHASE_SYSTEM,
     STATE_NORMAL,
@@ -249,6 +251,47 @@ class TestSafetyCoordinator(unittest.IsolatedAsyncioTestCase):
         # Reset alarm cancels everything
         await self.coordinator.async_reset(force=True)
         self.assertEqual(len(self.coordinator._repeating_action_timers), 0)
+
+    async def test_delayed_actions_lifecycle_and_silence_reset(self) -> None:
+        """Test delayed escalation actions are scheduled and cancelled on silence/reset."""
+        await self.storage.async_save_action({
+            "id": "delay_sip_call",
+            "name": "Delayed SIP Call",
+            "phase": PHASE_NOTIFICATION,
+            "service": "sipclient.call",
+            "target": {},
+            "data": {"target": "sip:person2@fritz.box"},
+            "delay": 60,
+            "repeat_interval": 0,
+            "enabled": True,
+            "trigger_types": [TYPE_SMOKE],
+        })
+
+        await self.storage.async_save_sensor({
+            "entity_id": "binary_sensor.smoke_delay_test",
+            "name": "Smoke Delay Test",
+            "zone": "kitchen",
+            "type": TYPE_SMOKE,
+            "pre_alarm_delay": 0,
+            "enabled": True,
+        })
+        st = MagicMock()
+        st.state = "on"
+        st.attributes = {"friendly_name": "Smoke Delay Test"}
+        await self.coordinator._async_handle_sensor_trigger("binary_sensor.smoke_delay_test", st)
+
+        self.assertEqual(self.coordinator.state, STATE_TRIGGERED)
+        self.assertIn("delay_sip_call", self.coordinator._delayed_action_timers)
+
+        # Silence alarm should cancel notification delayed actions
+        await self.coordinator.async_silence(duration=300)
+        self.assertNotIn("delay_sip_call", self.coordinator._delayed_action_timers)
+
+        # Re-trigger alarm and test reset
+        await self.coordinator._async_handle_sensor_trigger("binary_sensor.smoke_delay_test", st)
+        self.assertIn("delay_sip_call", self.coordinator._delayed_action_timers)
+        await self.coordinator.async_reset(force=True)
+        self.assertEqual(len(self.coordinator._delayed_action_timers), 0)
 
     async def test_auto_ack_on_clear(self) -> None:
         """Test auto-acknowledge reset when sensor returns to off."""

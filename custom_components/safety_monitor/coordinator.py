@@ -93,6 +93,7 @@ class SafetyCoordinator:
         self._silence_timer: CALLBACK_TYPE | None = None
         self._test_mode_timer: CALLBACK_TYPE | None = None
         self._repeating_action_timers: dict[str, tuple[CALLBACK_TYPE, str]] = {}
+        self._delayed_action_timers: dict[str, tuple[CALLBACK_TYPE, str]] = {}
 
         # State tracking listeners
         self._sensor_unsub: CALLBACK_TYPE | None = None
@@ -730,24 +731,113 @@ class SafetyCoordinator:
         self.hass.bus.async_fire(EVENT_SAFETY_ALARM_TRIGGERED, context)
 
         # Execute Escalation Phases:
-        # Phase 1: Cutoff (Valves, HVAC, Emergency Blinds)
-        await self.actions.async_execute_phase(PHASE_CUTOFF, context, sensor_cfg)
-        # Phase 2: High-Priority Notifications
-        await self.actions.async_execute_phase(PHASE_NOTIFICATION, context, sensor_cfg)
-        # Phase 3: Acoustic & Optical (Sirens, Flashing Red Lights)
-        await self.actions.async_execute_phase(PHASE_ACOUSTIC_OPTICAL, context, sensor_cfg)
+        # Phase 1: Cutoff (Valves, HVAC, Emergency Blinds) - immediate only
+        await self.actions.async_execute_phase(PHASE_CUTOFF, context, sensor_cfg, allow_delayed=False)
+        # Phase 2: High-Priority Notifications - immediate only
+        await self.actions.async_execute_phase(PHASE_NOTIFICATION, context, sensor_cfg, allow_delayed=False)
+        # Phase 3: Acoustic & Optical (Sirens, Flashing Red Lights) - immediate only
+        await self.actions.async_execute_phase(PHASE_ACOUSTIC_OPTICAL, context, sensor_cfg, allow_delayed=False)
 
-        # Start repeating action loop for actions with repeat_interval > 0
+        # Schedule delayed escalation actions (delay > 0)
+        self._async_schedule_delayed_actions(context)
+
+        # Start repeating action loop for actions with repeat_interval > 0 and delay == 0
         self._async_start_repeating_actions(context)
 
         self._async_notify_update()
+
+    def _cancel_delayed_actions(self, phases: list[str] | None = None) -> None:
+        """Cancel delayed escalation action timers."""
+        to_remove = []
+        for aid, (unsub, phase) in self._delayed_action_timers.items():
+            if phases is None or phase in phases:
+                try:
+                    unsub()
+                except Exception:
+                    pass
+                to_remove.append(aid)
+        for aid in to_remove:
+            self._delayed_action_timers.pop(aid, None)
+
+    def _async_schedule_delayed_actions(self, context: dict[str, Any]) -> None:
+        """Schedule delayed actions for execution while alarm is active."""
+        self._cancel_delayed_actions()
+        actions = self.store.async_get_actions()
+        hazard_type = context.get("hazard_type", "smoke")
+
+        for action in actions:
+            if not action.get("enabled", True):
+                continue
+            delay = int(action.get("delay", 0) or 0)
+            if delay <= 0:
+                continue
+            trigger_types = action.get("trigger_types", [])
+            if trigger_types and hazard_type not in trigger_types:
+                continue
+
+            aid = action.get("id")
+            phase = action.get("phase")
+            repeat_interval = int(action.get("repeat_interval", 0) or 0)
+
+            def _make_delayed_runner(act: dict[str, Any], p: str, r_intv: int):
+                async def _run_delayed(_now: Any = None) -> None:
+                    self._delayed_action_timers.pop(act.get("id"), None)
+                    if self._state != STATE_TRIGGERED:
+                        return
+                    settings = self.store.async_get_settings()
+                    if settings.get("test_mode") and p in (PHASE_CUTOFF, PHASE_ACOUSTIC_OPTICAL):
+                        return
+                    _LOGGER.info(
+                        "Executing delayed escalation action '%s' after %ds delay (%s)",
+                        act.get("name"),
+                        int(act.get("delay", 0) or 0),
+                        act.get("service"),
+                    )
+                    await self.actions.async_call_single_action(act, context, blocking=False)
+
+                    # If repeating is also configured, start repeating cycle now
+                    if r_intv > 0 and self._state == STATE_TRIGGERED:
+                        def _make_repeat_runner(repeat_act: dict[str, Any], intv: int, phase_name: str):
+                            async def _run_repeat(_now_rep: Any = None) -> None:
+                                if self._state != STATE_TRIGGERED:
+                                    self._cancel_repeating_actions([phase_name])
+                                    return
+                                setts = self.store.async_get_settings()
+                                if setts.get("test_mode") and phase_name in (PHASE_CUTOFF, PHASE_ACOUSTIC_OPTICAL):
+                                    return
+                                _LOGGER.info("Executing repeating action '%s' (every %ds)", repeat_act.get("name"), intv)
+                                await self.actions.async_call_single_action(repeat_act, context, blocking=False)
+                                if self._state == STATE_TRIGGERED:
+                                    rep_unsub = async_call_later(
+                                        self.hass, intv, lambda now_cb: self.hass.async_create_task(_run_repeat(now_cb))
+                                    )
+                                    self._repeating_action_timers[repeat_act.get("id")] = (rep_unsub, phase_name)
+
+                            return _run_repeat
+
+                        rep_runner = _make_repeat_runner(act, r_intv, p)
+                        unsub_rep = async_call_later(
+                            self.hass, r_intv, lambda now_cb, r_rep=rep_runner: self.hass.async_create_task(r_rep(now_cb))
+                        )
+                        self._repeating_action_timers[act.get("id")] = (unsub_rep, p)
+
+                return _run_delayed
+
+            runner = _make_delayed_runner(action, phase, repeat_interval)
+            unsub = async_call_later(
+                self.hass, delay, lambda now, r=runner: self.hass.async_create_task(r(now))
+            )
+            self._delayed_action_timers[aid] = (unsub, phase)
 
     def _cancel_repeating_actions(self, phases: list[str] | None = None) -> None:
         """Cancel repeating action timers."""
         to_remove = []
         for aid, (unsub, phase) in self._repeating_action_timers.items():
             if phases is None or phase in phases:
-                unsub()
+                try:
+                    unsub()
+                except Exception:
+                    pass
                 to_remove.append(aid)
         for aid in to_remove:
             self._repeating_action_timers.pop(aid, None)
@@ -760,6 +850,9 @@ class SafetyCoordinator:
 
         for action in actions:
             if not action.get("enabled", True):
+                continue
+            delay = int(action.get("delay", 0) or 0)
+            if delay > 0:
                 continue
             repeat_interval = int(action.get("repeat_interval", 0) or 0)
             if repeat_interval <= 0:
@@ -848,8 +941,9 @@ class SafetyCoordinator:
         _LOGGER.info("Silencing Safety Monitor acoustic alarms")
         self._set_state(STATE_SILENCED)
 
-        # Stop repeating acoustic/optical actions
-        self._cancel_repeating_actions([PHASE_ACOUSTIC_OPTICAL])
+        # Stop repeating and delayed acoustic/optical & notification actions
+        self._cancel_repeating_actions([PHASE_ACOUSTIC_OPTICAL, PHASE_NOTIFICATION])
+        self._cancel_delayed_actions([PHASE_ACOUSTIC_OPTICAL, PHASE_NOTIFICATION])
 
         # Execute silence actions (stop sirens, restore lights)
         await self.actions.async_execute_silence()
@@ -948,8 +1042,9 @@ class SafetyCoordinator:
         # Cancel any active self-test
         await self.async_cancel_self_test()
 
-        # Stop repeating actions
+        # Stop repeating and delayed actions
         self._cancel_repeating_actions()
+        self._cancel_delayed_actions()
 
         # Stop any active sirens
         await self.actions.async_execute_silence()
@@ -1635,3 +1730,5 @@ class SafetyCoordinator:
             except Exception:
                 pass
         self._offline_debounce_timers.clear()
+        self._cancel_repeating_actions()
+        self._cancel_delayed_actions()
