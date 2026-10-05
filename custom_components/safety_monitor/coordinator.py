@@ -9,6 +9,7 @@ from typing import Any, Callable
 from homeassistant.const import (
     ATTR_DEVICE_CLASS,
     ATTR_FRIENDLY_NAME,
+    EVENT_HOMEASSISTANT_STARTED,
     STATE_OFF,
     STATE_ON,
     STATE_UNAVAILABLE,
@@ -34,7 +35,9 @@ from .const import (
     DEFAULT_AUTO_SELF_TEST_TIME,
     DEFAULT_BATTERY_LOW_THRESHOLD,
     DEFAULT_DOUBLE_KNOCK_TIMEOUT,
+    DEFAULT_OFFLINE_DEBOUNCE_SECONDS,
     DEFAULT_SILENCE_DURATION,
+    DEFAULT_STARTUP_GRACE_SECONDS,
     DEFAULT_TEST_MODE_DURATION,
     EVENT_SAFETY_ALARM_RESET,
     EVENT_SAFETY_ALARM_SILENCED,
@@ -94,6 +97,10 @@ class SafetyCoordinator:
         # State tracking listeners
         self._sensor_unsub: CALLBACK_TYPE | None = None
         self._offline_sensors: set[str] = set()
+        self._offline_debounce_timers: dict[str, CALLBACK_TYPE] = {}
+        self._startup_grace: bool = False
+        self._startup_timer: CALLBACK_TYPE | None = None
+        self._startup_unsub: CALLBACK_TYPE | None = None
         self._ignored_sensors: set[str] = set()
         self._sensor_batteries: dict[str, dict[str, Any]] = {}
         self._low_battery_sensors: dict[str, dict[str, Any]] = {}
@@ -170,6 +177,56 @@ class SafetyCoordinator:
         self._auto_self_test_unsub = async_track_time_interval(
             self.hass, self._async_check_auto_self_test, timedelta(minutes=1)
         )
+
+        # Handle startup grace period
+        settings = self.store.async_get_settings()
+        startup_grace_sec = int(settings.get("startup_grace_seconds", DEFAULT_STARTUP_GRACE_SECONDS))
+
+        if getattr(self.hass, "is_running", None) is False:
+            self._startup_grace = True
+
+            @callback
+            def _on_ha_started(event: Event) -> None:
+                self._startup_unsub = None
+                self._schedule_startup_grace_completion(startup_grace_sec)
+
+            self._startup_unsub = self.hass.bus.async_listen_once(
+                EVENT_HOMEASSISTANT_STARTED, _on_ha_started
+            )
+        else:
+            self._startup_grace = False
+
+    def _schedule_startup_grace_completion(self, delay: float) -> None:
+        """Schedule the completion of the startup grace period."""
+        if self._startup_timer is not None:
+            try:
+                self._startup_timer()
+            except Exception:
+                pass
+            self._startup_timer = None
+
+        if delay <= 0:
+            self._async_complete_startup_grace()
+            return
+
+        @callback
+        def _on_grace_ended(now: Any) -> None:
+            self._startup_timer = None
+            self._async_complete_startup_grace()
+
+        self._startup_timer = async_call_later(self.hass, delay, _on_grace_ended)
+
+    @callback
+    def _async_complete_startup_grace(self) -> None:
+        """Finish startup grace period and evaluate sensors that remain offline."""
+        self._startup_grace = False
+        monitored = self.store.async_get_sensors()
+        for entity_id, cfg in monitored.items():
+            if not cfg.get("enabled", True):
+                continue
+            st = self.hass.states.get(entity_id)
+            if not st or st.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+                self._async_handle_sensor_offline_candidate(entity_id, cfg)
 
     async def async_update_listeners(self) -> None:
         """Re-bind event listener to all configured sensors and battery entities."""
@@ -310,15 +367,100 @@ class SafetyCoordinator:
                 continue
             st = self.hass.states.get(entity_id)
             if not st:
-                self._offline_sensors.add(entity_id)
                 continue
-            if st.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
-                self._offline_sensors.add(entity_id)
-            elif st.state == STATE_ON:
-                # Sensor is already ON at startup
+            if st.state == STATE_ON:
+                # Sensor is already ON at startup - immediate safety alert
                 self.hass.async_create_task(
                     self._async_handle_sensor_trigger(entity_id, st)
                 )
+
+    @callback
+    def _async_handle_sensor_offline_candidate(
+        self, entity_id: str, sensor_cfg: dict[str, Any]
+    ) -> None:
+        """Handle sensor entering unavailable/unknown state with debouncing."""
+        if entity_id in self._offline_sensors:
+            return
+        if entity_id in self._offline_debounce_timers:
+            return
+
+        settings = self.store.async_get_settings()
+        debounce_seconds = int(
+            settings.get("offline_debounce_seconds", DEFAULT_OFFLINE_DEBOUNCE_SECONDS)
+        )
+
+        if debounce_seconds <= 0:
+            self._async_confirm_sensor_offline(entity_id, sensor_cfg)
+            return
+
+        @callback
+        def _on_offline_debounced(now: Any) -> None:
+            self._offline_debounce_timers.pop(entity_id, None)
+            st = self.hass.states.get(entity_id)
+            if not st or st.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+                self._async_confirm_sensor_offline(entity_id, sensor_cfg)
+
+        self._offline_debounce_timers[entity_id] = async_call_later(
+            self.hass, debounce_seconds, _on_offline_debounced
+        )
+
+    @callback
+    def _async_confirm_sensor_offline(
+        self, entity_id: str, sensor_cfg: dict[str, Any]
+    ) -> None:
+        """Mark sensor as confirmed offline and dispatch alert."""
+        if entity_id in self._offline_sensors:
+            return
+        self._offline_sensors.add(entity_id)
+        _LOGGER.warning("Monitored safety sensor became offline: %s", entity_id)
+        settings = self.store.async_get_settings()
+        if settings.get("heartbeat_alert_offline", True):
+            self.hass.async_create_task(
+                self._async_notify_system_alert(
+                    event_type="sensor_offline",
+                    entity_id=entity_id,
+                    sensor_cfg=sensor_cfg,
+                )
+            )
+        self.hass.bus.async_fire(
+            EVENT_SAFETY_SENSOR_OFFLINE,
+            {"entity_id": entity_id, "name": sensor_cfg.get("name", entity_id)},
+        )
+        self._async_notify_update()
+
+    @callback
+    def _async_handle_sensor_online_candidate(
+        self, entity_id: str, sensor_cfg: dict[str, Any]
+    ) -> None:
+        """Handle sensor returning to a valid online state."""
+        # 1. Cancel any pending offline debounce timer
+        timer = self._offline_debounce_timers.pop(entity_id, None)
+        if timer is not None:
+            try:
+                timer()
+            except Exception:
+                pass
+
+        # 2. If it was confirmed offline, recover it
+        if entity_id in self._offline_sensors:
+            self._offline_sensors.discard(entity_id)
+            _LOGGER.info("Monitored safety sensor came back online: %s", entity_id)
+            sensor_name = sensor_cfg.get("name", entity_id)
+            self.hass.bus.async_fire(
+                EVENT_SAFETY_SENSOR_ONLINE,
+                {"entity_id": entity_id, "name": sensor_name},
+            )
+            self.hass.async_create_task(
+                self.store.async_add_history(
+                    {
+                        "event": "sensor_online",
+                        "entity_id": entity_id,
+                        "name": sensor_name,
+                        "details": f"Melder {sensor_name} ist wieder online",
+                    }
+                )
+            )
+            self._async_notify_update()
 
     async def _async_on_sensor_state_change(self, event: Event) -> None:
         """Handle state change event for a monitored sensor or battery entity."""
@@ -346,41 +488,13 @@ class SafetyCoordinator:
         sensor_cfg = monitored.get(entity_id) or {}
         self._async_check_sensor_battery(entity_id, sensor_cfg)
 
-        # Check offline condition
+        # Check offline / online condition
         if new_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
-            if entity_id not in self._offline_sensors:
-                self._offline_sensors.add(entity_id)
-                _LOGGER.warning("Monitored safety sensor became offline: %s", entity_id)
-                settings = self.store.async_get_settings()
-                if settings.get("heartbeat_alert_offline", True):
-                    self.hass.async_create_task(
-                        self._async_notify_system_alert(
-                            event_type="sensor_offline",
-                            entity_id=entity_id,
-                            sensor_cfg=sensor_cfg,
-                        )
-                    )
-                self._async_notify_update()
+            if not self._startup_grace:
+                self._async_handle_sensor_offline_candidate(entity_id, sensor_cfg)
             return
-        elif entity_id in self._offline_sensors:
-            self._offline_sensors.discard(entity_id)
-            _LOGGER.info("Monitored safety sensor came back online: %s", entity_id)
-            sensor_name = sensor_cfg.get("name", entity_id)
-            self.hass.bus.async_fire(
-                EVENT_SAFETY_SENSOR_ONLINE,
-                {"entity_id": entity_id, "name": sensor_name},
-            )
-            self.hass.async_create_task(
-                self.store.async_add_history(
-                    {
-                        "event": "sensor_online",
-                        "entity_id": entity_id,
-                        "name": sensor_name,
-                        "details": f"Melder {sensor_name} ist wieder online",
-                    }
-                )
-            )
-            self._async_notify_update()
+        else:
+            self._async_handle_sensor_online_candidate(entity_id, sensor_cfg)
 
         # Check hazard state transitions (only on actual state change, ignoring pure attribute updates)
         old_state_str = old_state.state if old_state else None
@@ -1494,3 +1608,30 @@ class SafetyCoordinator:
     def _async_notify_update(self) -> None:
         """Notify listeners (Lovelace entities, UI panel, WebSocket) of updates."""
         async_dispatcher_send(self.hass, SIGNAL_SAFETY_MONITOR_UPDATED)
+
+    def async_unload(self) -> None:
+        """Cancel all background timers, listeners, and debounces."""
+        if self._sensor_unsub is not None:
+            self._sensor_unsub()
+            self._sensor_unsub = None
+        if self._auto_self_test_unsub is not None:
+            self._auto_self_test_unsub()
+            self._auto_self_test_unsub = None
+        if self._startup_timer is not None:
+            try:
+                self._startup_timer()
+            except Exception:
+                pass
+            self._startup_timer = None
+        if self._startup_unsub is not None:
+            try:
+                self._startup_unsub()
+            except Exception:
+                pass
+            self._startup_unsub = None
+        for timer in list(self._offline_debounce_timers.values()):
+            try:
+                timer()
+            except Exception:
+                pass
+        self._offline_debounce_timers.clear()

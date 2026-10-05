@@ -5,7 +5,7 @@ import os
 
 DOMAIN = "safety_monitor"
 NAME = "Safety Monitor"
-VERSION = "1.0.34"
+VERSION = "1.0.35"
 MANUFACTURER = "Safety Monitor"
 
 # Storage
@@ -79,6 +79,8 @@ DEFAULT_BATTERY_LOW_THRESHOLD = 15
 DEFAULT_AUTO_SELF_TEST_STEP_SECONDS = 60
 DEFAULT_AUTO_SELF_TEST_DAY = 1
 DEFAULT_AUTO_SELF_TEST_TIME = "11:00"
+DEFAULT_OFFLINE_DEBOUNCE_SECONDS = 30  # Debounce duration for offline detection (seconds)
+DEFAULT_STARTUP_GRACE_SECONDS = 60     # Grace period after startup before checking offline sensors
 
 # Home Assistant Bus Events
 EVENT_SAFETY_STATE_CHANGED = "safety_monitor_state_changed"

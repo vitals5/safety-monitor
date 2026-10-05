@@ -510,6 +510,7 @@ class TestSafetyCoordinator(unittest.IsolatedAsyncioTestCase):
 
     async def test_system_alert_sensor_offline_and_online(self) -> None:
         """Test that sensor becoming unavailable triggers offline system alert and online event when restored."""
+        await self.storage.async_update_settings({"offline_debounce_seconds": 0})
         await self.storage.async_save_sensor({
             "entity_id": "binary_sensor.hallway_smoke",
             "name": "Hallway Smoke Detector",
@@ -560,6 +561,127 @@ class TestSafetyCoordinator(unittest.IsolatedAsyncioTestCase):
         bus_calls = self.hass.bus.async_fire.call_args_list
         on_event = next((c for c in bus_calls if c[0][0] == EVENT_SAFETY_SENSOR_ONLINE), None)
         self.assertIsNotNone(on_event)
+
+    async def test_sensor_offline_debounce_cancelled_when_recovering_quickly(self) -> None:
+        """Test that a brief offline blip is cancelled by debounce without firing alerts or log entries."""
+        await self.storage.async_update_settings({"offline_debounce_seconds": 30})
+        await self.storage.async_save_sensor({
+            "entity_id": "binary_sensor.kitchen_smoke",
+            "name": "Kitchen Smoke Detector",
+            "zone": "kitchen",
+            "enabled": True,
+        })
+
+        # 1. Sensor becomes unavailable (blip)
+        offline_state = MagicMock()
+        offline_state.state = "unavailable"
+        offline_state.attributes = {}
+
+        event_offline = MagicMock()
+        event_offline.data = {
+            "entity_id": "binary_sensor.kitchen_smoke",
+            "new_state": offline_state,
+        }
+        await self.coordinator._async_on_sensor_state_change(event_offline)
+
+        # Sensor should be in debounce timers, NOT yet in offline_sensors
+        self.assertIn("binary_sensor.kitchen_smoke", self.coordinator._offline_debounce_timers)
+        self.assertNotIn("binary_sensor.kitchen_smoke", self.coordinator.offline_sensors)
+
+        # 2. Sensor recovers to 'off' within 2 seconds
+        online_state = MagicMock()
+        online_state.state = "off"
+        online_state.attributes = {}
+
+        event_online = MagicMock()
+        event_online.data = {
+            "entity_id": "binary_sensor.kitchen_smoke",
+            "new_state": online_state,
+        }
+        await self.coordinator._async_on_sensor_state_change(event_online)
+
+        # Debounce timer cancelled, sensor was never marked offline
+        self.assertNotIn("binary_sensor.kitchen_smoke", self.coordinator._offline_debounce_timers)
+        self.assertNotIn("binary_sensor.kitchen_smoke", self.coordinator.offline_sensors)
+
+        # History should NOT have any sensor_online or sensor_offline entries
+        history = self.storage.async_get_history()
+        self.assertEqual(len(history), 0)
+
+    async def test_sensor_offline_debounce_triggers_when_expired(self) -> None:
+        """Test that staying offline past debounce duration confirms offline and logs online on return."""
+        await self.storage.async_update_settings({"offline_debounce_seconds": 30})
+        await self.storage.async_save_sensor({
+            "entity_id": "binary_sensor.attic_smoke",
+            "name": "Attic Smoke",
+            "zone": "attic",
+            "enabled": True,
+        })
+
+        # Mock hass state for attic_smoke
+        attic_state = MagicMock()
+        attic_state.state = "unavailable"
+        self.hass.states.get = MagicMock(return_value=attic_state)
+
+        event_offline = MagicMock()
+        event_offline.data = {
+            "entity_id": "binary_sensor.attic_smoke",
+            "new_state": attic_state,
+        }
+        await self.coordinator._async_on_sensor_state_change(event_offline)
+        self.assertIn("binary_sensor.attic_smoke", self.coordinator._offline_debounce_timers)
+
+        # Trigger the debounce callback manually (simulating timer expiration)
+        sensor_cfg = self.storage.async_get_sensor("binary_sensor.attic_smoke")
+        self.coordinator._async_confirm_sensor_offline("binary_sensor.attic_smoke", sensor_cfg)
+        self.assertIn("binary_sensor.attic_smoke", self.coordinator.offline_sensors)
+
+        # When it returns online, it should log "wieder online"
+        online_state = MagicMock()
+        online_state.state = "off"
+        online_state.attributes = {}
+        event_online = MagicMock()
+        event_online.data = {
+            "entity_id": "binary_sensor.attic_smoke",
+            "new_state": online_state,
+        }
+        await self.coordinator._async_on_sensor_state_change(event_online)
+        await asyncio.sleep(0.01)
+
+        self.assertNotIn("binary_sensor.attic_smoke", self.coordinator.offline_sensors)
+        history = self.storage.async_get_history()
+        online_entries = [h for h in history if h.get("event") == "sensor_online"]
+        self.assertEqual(len(online_entries), 1)
+        self.assertIn("ist wieder online", online_entries[0]["details"])
+
+    async def test_startup_grace_period_prevents_offline_online_spam(self) -> None:
+        """Test that devices initializing during startup grace period do not log 'wieder online'."""
+        await self.storage.async_save_sensor({
+            "entity_id": "binary_sensor.kids_smoke",
+            "name": "Kids Smoke",
+            "zone": "kids",
+            "enabled": True,
+        })
+
+        # Set startup grace active
+        self.coordinator._startup_grace = True
+
+        # State transitions from unavailable to off during startup
+        online_state = MagicMock()
+        online_state.state = "off"
+        online_state.attributes = {}
+        event_online = MagicMock()
+        event_online.data = {
+            "entity_id": "binary_sensor.kids_smoke",
+            "new_state": online_state,
+        }
+        await self.coordinator._async_on_sensor_state_change(event_online)
+        await asyncio.sleep(0.01)
+
+        # No 'wieder online' message should be recorded in history
+        history = self.storage.async_get_history()
+        online_entries = [h for h in history if h.get("event") == "sensor_online"]
+        self.assertEqual(len(online_entries), 0)
 
     async def test_attribute_change_does_not_retrigger_or_clear_hazard(self) -> None:
         """Test that attribute updates without state change do not trigger or clear hazards."""

@@ -116,13 +116,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator: SafetyCoordinator | None = entry_data.get(DATA_COORDINATOR)
 
     if coordinator:
-        # Cancel any active timers and listeners
+        # Cancel any active timers, debounces and listeners
         await coordinator.async_reset(force=True)
-        if coordinator._sensor_unsub is not None:
-            coordinator._sensor_unsub()
-        if coordinator._auto_self_test_unsub is not None:
-            coordinator._auto_self_test_unsub()
-            coordinator._auto_self_test_unsub = None
+        coordinator.async_unload()
 
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:

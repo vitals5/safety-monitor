@@ -114,6 +114,8 @@
         "lblSilenceDuration": "Stummschaltung Dauer (Minuten):",
         "lblDoubleKnockTimeout": "Globaler Double-Knock Timeout (Sekunden):",
         "lblOfflineAlerts": "Warnung bei offline / nicht erreichbaren Sensoren",
+        "lblOfflineDebounce": "Melder-Offline Entprellzeit (Sekunden):",
+        "descOfflineDebounce": "Verhindert Fehlalarme und Status-Spam bei kurzen Netzwerkaussetzern oder beim Neustart von Home Assistant.",
         "lblBatteryAlerts": "Warnung bei schwachem Batteriestand (< 15%)",
         "zonesTitle": "Gefahrenzonen & Räume",
         "zoneName": "Zonen-Name",
@@ -328,6 +330,8 @@
         "lblSilenceDuration": "Silence Duration (Minutes):",
         "lblDoubleKnockTimeout": "Global Double-Knock Timeout (Seconds):",
         "lblOfflineAlerts": "Alert on offline / unavailable sensors",
+        "lblOfflineDebounce": "Sensor offline debounce delay (seconds):",
+        "descOfflineDebounce": "Prevents false offline alerts and log spam during brief network glitches or Home Assistant restarts.",
         "lblBatteryAlerts": "Alert on low sensor battery (< 15%)",
         "zonesTitle": "Hazard Zones & Areas",
         "zoneName": "Zone Name",
@@ -542,6 +546,8 @@
         "lblSilenceDuration": "Durée de mise sous silence (minutes) :",
         "lblDoubleKnockTimeout": "Délai global de double confirmation (secondes) :",
         "lblOfflineAlerts": "Alerter si des capteurs sont hors-ligne / indisponibles",
+        "lblOfflineDebounce": "Délai d'anti-rebond hors-ligne (secondes) :",
+        "descOfflineDebounce": "Évite les fausses alertes et le spam lors de courtes coupures ou redémarrages.",
         "lblBatteryAlerts": "Alerter en cas de batterie faible (< 15%)",
         "zonesTitle": "Zones de risque & Pièces",
         "zoneName": "Nom de la zone",
@@ -756,6 +762,8 @@
         "lblSilenceDuration": "Duración del silencio (minutos):",
         "lblDoubleKnockTimeout": "Tiempo de doble verificación global (segundos):",
         "lblOfflineAlerts": "Avisar ante sensores desconectados / no disponibles",
+        "lblOfflineDebounce": "Tiempo de antirrebote fuera de línea (segundos):",
+        "descOfflineDebounce": "Evita alertas falsas y saturación del registro durante cortes breves o reinicios.",
         "lblBatteryAlerts": "Avisar si la batería del sensor está baja (< 15%)",
         "zonesTitle": "Zonas de peligro & Estancias",
         "zoneName": "Nombre de la zona",
@@ -970,6 +978,8 @@
         "lblSilenceDuration": "Durata silenziamento (minuti):",
         "lblDoubleKnockTimeout": "Timeout globale doppia verifica (secondi):",
         "lblOfflineAlerts": "Avvisa per sensori offline / non disponibili",
+        "lblOfflineDebounce": "Ritardo di debounce offline (secondi):",
+        "descOfflineDebounce": "Previene falsi allarmi e messaggi ripetuti durante brevi disconnessioni o riavvii.",
         "lblBatteryAlerts": "Avvisa per batteria scarica (< 15%)",
         "zonesTitle": "Zone di pericolo & Stanze",
         "zoneName": "Nome della zona",
@@ -1184,6 +1194,8 @@
         "lblSilenceDuration": "Duur demping (minuten):",
         "lblDoubleKnockTimeout": "Globale double-knock timeout (seconden):",
         "lblOfflineAlerts": "Melding bij offline / niet-beschikbare sensoren",
+        "lblOfflineDebounce": "Sensor offline ontstoringstijd (seconden):",
+        "descOfflineDebounce": "Voorkomt valse meldingen en log-vervuiling bij korte netwerkonderbrekingen of herstarts.",
         "lblBatteryAlerts": "Melding bij lage batterij (< 15%)",
         "zonesTitle": "Gevarenzones & Ruimtes",
         "zoneName": "Zonenaam",
@@ -1398,6 +1410,8 @@
         "lblSilenceDuration": "Czas wyciszenia syren (minuty):",
         "lblDoubleKnockTimeout": "Globalny limit podwójnej weryfikacji (sekundy):",
         "lblOfflineAlerts": "Ostrzegaj o niedostępnych / offline czujnikach",
+        "lblOfflineDebounce": "Czas filtrowania offline czujnika (sekundy):",
+        "descOfflineDebounce": "Zapobiega fałszywym alarmom i zaśmiecaniu dziennika podczas krótkich przerw sieciowych lub restartów.",
         "lblBatteryAlerts": "Ostrzegaj o niskim poziomie baterii (< 15%)",
         "zonesTitle": "Strefy zagrożeń & Pomieszczenia",
         "zoneName": "Nazwa strefy",
@@ -1612,6 +1626,8 @@
         "lblSilenceDuration": "Duração do silêncio (minutos):",
         "lblDoubleKnockTimeout": "Tempo de dupla verificação global (segundos):",
         "lblOfflineAlerts": "Alertar sobre sensores offline / indisponíveis",
+        "lblOfflineDebounce": "Tempo de eliminação de oscilação offline (segundos):",
+        "descOfflineDebounce": "Evita falsos alertas e spam no registo durante breves falhas de rede ou reinícios.",
         "lblBatteryAlerts": "Alertar sobre bateria baixa (< 15%)",
         "zonesTitle": "Zonas de perigo & Divisões",
         "zoneName": "Nome da zona",
@@ -1826,6 +1842,8 @@
         "lblSilenceDuration": "Длительность заглушения сирен (минут):",
         "lblDoubleKnockTimeout": "Глобальный таймаут двойного подтверждения (секунд):",
         "lblOfflineAlerts": "Оповещать об отключённых / недоступных датчиках",
+        "lblOfflineDebounce": "Время подавления дребезга офлайн (секунды):",
+        "descOfflineDebounce": "Предотвращает ложные тревоги и спам в журнале при кратковременных сбоях сети или перезагрузке.",
         "lblBatteryAlerts": "Оповещать о низком заряде батареи (< 15%)",
         "zonesTitle": "Зоны опасности & Комнаты",
         "zoneName": "Название зоны",
@@ -2040,6 +2058,8 @@
         "lblSilenceDuration": "Tystnadens varaktighet (minuter):",
         "lblDoubleKnockTimeout": "Global timeout för dubbelverifiering (sekunder):",
         "lblOfflineAlerts": "Varna vid frånkopplade / offline sensorer",
+        "lblOfflineDebounce": "Avstudsningstid för offline-sensorer (sekunder):",
+        "descOfflineDebounce": "Förhindrar falsklarm och logg-spam vid korta nätverksavbrott eller omstarter.",
         "lblBatteryAlerts": "Varna vid svagt sensorbatteri (< 15%)",
         "zonesTitle": "Riskzoner & Rum",
         "zoneName": "Zonnamn",
@@ -5240,6 +5260,13 @@
             </label>
           </div>
           <div class="form-group">
+            <label class="form-label">${this._t("lblOfflineDebounce")}</label>
+            <input type="number" class="form-control" id="setting-offline-debounce" min="0" max="600" value="${settings.offline_debounce_seconds !== undefined ? settings.offline_debounce_seconds : 30}">
+            <div style="font-size: 12px; color: var(--secondary-text-color, #757575); margin-top: 4px;">
+              ${this._t("descOfflineDebounce")}
+            </div>
+          </div>
+          <div class="form-group">
             <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
               <input type="checkbox" id="setting-battery-alerts" ${settings.heartbeat_alert_battery ? 'checked' : ''}>
               ${this._t("lblBatteryAlerts")}
@@ -6496,6 +6523,7 @@
           const silMin = parseInt(root.querySelector('#setting-silence-timeout').value, 10) || 10;
           const dkSec = parseInt(root.querySelector('#setting-double-knock').value, 10) || 60;
           const offlineAlert = root.querySelector('#setting-offline-alerts').checked;
+          const offlineDebounceSec = parseInt(root.querySelector('#setting-offline-debounce')?.value, 10);
           const batteryAlert = root.querySelector('#setting-battery-alerts').checked;
           const autoSelfTestEnabled = root.querySelector('#setting-auto-self-test-enabled')?.checked || false;
           const autoSelfTestDay = parseInt(root.querySelector('#setting-auto-self-test-day')?.value, 10) || 1;
@@ -6512,6 +6540,7 @@
             silence_timeout: silMin * 60,
             double_knock_global_timeout: dkSec,
             heartbeat_alert_offline: offlineAlert,
+            offline_debounce_seconds: isNaN(offlineDebounceSec) ? 30 : Math.max(0, offlineDebounceSec),
             heartbeat_alert_battery: batteryAlert,
             auto_self_test_enabled: autoSelfTestEnabled,
             auto_self_test_day: autoSelfTestDay,
